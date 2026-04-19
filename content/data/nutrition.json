@@ -1,0 +1,68 @@
+[
+  {
+    "content_id": "nutrition-basics-001",
+    "title": "Eating for Gut Health: The Basics",
+    "topic": "nutrition",
+    "tags": ["basic", "patient-education"],
+    "summary": "Simple dietary principles to support a healthy digestive system.",
+    "content": "A gut-healthy diet focuses on nourishing the beneficial bacteria in your digestive system while supporting overall digestive function. Here are the key principles: Eat More Fiber: Aim for 25-35 grams daily from diverse sources. Good options include vegetables (broccoli, carrots, leafy greens), fruits (berries, apples, pears), whole grains (oats, quinoa, brown rice), and legumes (beans, lentils, chickpeas). Fiber feeds beneficial gut bacteria and promotes regular bowel movements. Include Fermented Foods: These contain live beneficial bacteria. Try to include one serving daily of yogurt with live cultures, kefir, sauerkraut, kimchi, miso, or kombucha. Start slowly if you're not used to fermented foods. Stay Hydrated: Water helps fiber work effectively and supports digestive function. Aim for 8 glasses daily, more if you're active or in hot weather. Limit Processed Foods: Ultra-processed foods, artificial sweeteners, and excessive sugar can negatively impact gut bacteria diversity. Focus on whole, minimally processed foods most of the time. Eat Mindfully: Eating slowly and chewing thoroughly aids digestion. Stress during meals can impair digestive function, so try to eat in a relaxed environment. Foods to emphasize: colorful vegetables, fruits, whole grains, legumes, nuts, seeds, olive oil, fatty fish, and fermented foods. Foods to limit: processed meats, refined grains, sugary drinks, excessive alcohol, and artificial sweeteners.",
+    "fga_object_id": "content:nutrition-basics-001",
+    "metadata": {
+      "author": "RAG Health Editorial Team",
+      "created_at": "2024-01-25T10:00:00Z",
+      "source": "patient-education"
+    }
+  },
+  {
+    "content_id": "nutrition-advanced-001",
+    "title": "Advanced Nutritional Strategies for Microbiome Optimization",
+    "topic": "nutrition",
+    "tags": ["premium"],
+    "summary": "Science-based nutritional approaches to enhance gut microbiome health.",
+    "content": "Optimizing nutrition for microbiome health goes beyond basic fiber intake to include strategic food choices, timing, and combinations backed by scientific research. Polyphenol-Rich Foods: Polyphenols are poorly absorbed in the small intestine, reaching the colon where gut bacteria metabolize them into bioactive compounds. Key sources: berries (especially blueberries, blackberries), grapes and red wine (moderate), green tea, dark chocolate (>70% cacao), coffee, extra virgin olive oil, and colorful vegetables. These foods increase Akkermansia, Bifidobacteria, and other beneficial species while producing anti-inflammatory metabolites. Resistant Starch: This fiber reaches the colon intact where it's fermented into butyrate. Sources include cooled cooked potatoes, cooled rice, green bananas, and legumes. Cooling and reheating starches increases resistant starch content. Aim for 15-30g daily, increasing gradually to avoid gas and bloating. Omega-3 Fatty Acids: EPA and DHA from fatty fish (salmon, mackerel, sardines) modulate gut microbiome composition and reduce inflammation. Aim for 2-3 servings of fatty fish weekly or consider supplementation (2-3g EPA+DHA daily). Chrononutrition: Time-restricted eating (12-16 hour overnight fast) enhances microbial diversity and circadian rhythm alignment. Eating larger meals earlier in the day may benefit metabolic health. Avoid late-night eating which can disrupt gut bacteria rhythms. Strategic Food Combining: Pair prebiotics with probiotics (e.g., yogurt with berries). Consume vitamin C with iron-rich plant foods to enhance absorption. Pair fat with fat-soluble nutrients (olive oil with vegetables). Anti-Inflammatory Pattern: Mediterranean diet is most evidence-based for gut and overall health, emphasizing olive oil, fish, nuts, vegetables, fruits, legumes, and whole grains while limiting red meat and processed foods.",
+    "fga_object_id": "content:nutrition-advanced-001",
+    "metadata": {
+      "author": "Dr. Michelle Park, Nutritional Sciences",
+      "created_at": "2024-02-12T10:00:00Z",
+      "source": "premium-content"
+    }
+  },
+  {
+    "content_id": "clinical-nutrition-001",
+    "title": "Medical Nutrition Therapy for Gastrointestinal Disorders",
+    "topic": "nutrition",
+    "tags": ["clinical"],
+    "summary": "Clinical nutrition protocols for managing GI conditions.",
+    "content": "Medical nutrition therapy (MNT) is essential in managing gastrointestinal disorders, often serving as first-line treatment or as adjunct to pharmacotherapy. IBS - Low-FODMAP Diet Protocol: Phase 1 (Restriction): 2-6 weeks eliminating high-FODMAP foods. Provide detailed food lists and meal plans. Monitor symptom diary. Refer to FODMAP-trained dietitian when available. Phase 2 (Reintroduction): Systematic challenge of each FODMAP group (fructose, lactose, fructans, GOS, polyols) over 8-12 weeks. Test foods individually in escalating doses. Phase 3 (Personalization): Liberalize diet based on individual tolerances. Goal is least restrictive diet that controls symptoms. Evidence: RCTs show 50-80% symptom response; network meta-analysis ranks low-FODMAP highest for IBS dietary interventions. IBD Nutritional Management: Exclusive Enteral Nutrition (EEN): First-line for pediatric Crohn's disease, 80% remission rates comparable to corticosteroids. Polymeric formulas (e.g., Modulen IBD, Ensure) preferred; elemental if polymeric intolerant. Duration 6-8 weeks with gradual food reintroduction. Partial Enteral Nutrition (PEN): 50% calories from formula + Crohn's Disease Exclusion Diet. Emerging evidence for adults with mild-moderate CD. Micronutrient Assessment: Check iron, B12, folate, vitamin D, zinc in all IBD patients. Iron deficiency common (30-70%); oral vs IV replacement based on severity and tolerance. B12 monitoring essential post-ileal resection or extensive ileal disease. Celiac Disease: Strict lifelong gluten-free diet. Educate on hidden gluten sources and cross-contamination. Monitor for nutritional deficiencies (iron, B12, folate, calcium, vitamin D, zinc, fiber). Annual TTG-IgA to monitor compliance; persistent elevation suggests ongoing gluten exposure. SIBO Dietary Approaches: Elemental diet (2-3 weeks) achieves 80% breath test normalization. Low-fermentation diet during and after antibiotic treatment. Address underlying motility issues to prevent recurrence.",
+    "fga_object_id": "content:clinical-nutrition-001",
+    "metadata": {
+      "author": "Dr. Sarah Miller, GI Dietitian",
+      "created_at": "2024-03-01T10:00:00Z",
+      "source": "clinical-guidelines",
+      "citations": [
+        "Whelan K, et al. Nat Rev Gastroenterol Hepatol. 2018;15:283-299",
+        "Levine A, et al. Gastroenterology. 2019;157:440-450",
+        "Pimentel M, et al. Dig Dis Sci. 2004;49:73-77"
+      ]
+    }
+  },
+  {
+    "content_id": "research-nutrition-001",
+    "title": "Dietary Modulation of the Gut Microbiome: Mechanisms and Metabolites",
+    "topic": "nutrition",
+    "tags": ["research"],
+    "summary": "Research on how dietary components interact with gut bacteria to influence health.",
+    "content": "Dietary modulation of the gut microbiome involves complex interactions between food components, microbial metabolism, and host physiology. Understanding these mechanisms enables rational design of dietary interventions. Short-Chain Fatty Acid Production: Dietary fiber fermentation produces SCFAs - primarily acetate, propionate, and butyrate. Acetate (60%): Most abundant, produced by most gut bacteria. Systemic effects include appetite regulation via hypothalamic signaling and substrate for peripheral lipogenesis. Propionate (20%): Produced by Bacteroidetes, Negativicutes. Primarily metabolized by liver; reduces hepatic lipogenesis and gluconeogenesis. May signal through GPR41/43 in the portal vein. Butyrate (20%): Produced by Firmicutes (Faecalibacterium, Roseburia, Eubacterium). Primary energy source for colonocytes (provides 60-70% of energy needs). Enhances barrier function through tight junction protein expression. Anti-inflammatory via HDAC inhibition and GPR109a signaling. Promotes Treg differentiation. Fiber-Microbiome Interactions: Different fibers select for different bacteria. Inulin/FOS: Increase Bifidobacteria and butyrate producers. Resistant starch: Selectively increases Ruminococcus bromii, which cross-feeds butyrate producers. Beta-glucans: Immunomodulatory effects via Dectin-1 and microbiome modulation. Arabinoxylan: Increases Bacteroides and propionate production. Polyphenol-Microbiome Interactions: 90-95% of dietary polyphenols reach the colon intact. Gut bacteria transform polyphenols into bioactive metabolites. Ellagitannins (berries, pomegranate) → urolithins (anti-inflammatory, neuroprotective). Isoflavones (soy) → equol (estrogenic, cardiovascular benefits) - only 30-50% of population are 'equol producers' based on microbiome composition. Anthocyanins → protocatechuic acid and other phenolic acids with antioxidant properties. Catechins (tea) → valerolactones with anti-inflammatory effects. Tryptophan-Derived Metabolites: Dietary tryptophan is metabolized by gut bacteria into indole derivatives. Indole-3-aldehyde: AhR ligand, promotes IL-22 and barrier function. Indole-3-acetic acid: Anti-inflammatory, potentially neuroprotective. Indole-3-propionic acid: Potent antioxidant, neuroprotective, maintains barrier integrity. Reduced indole metabolites associated with IBD and metabolic disease.",
+    "fga_object_id": "content:research-nutrition-001",
+    "metadata": {
+      "author": "Dr. David Chen, Nutritional Biochemistry",
+      "created_at": "2024-03-15T10:00:00Z",
+      "source": "research-review",
+      "citations": [
+        "Koh A, et al. Cell. 2016;165:1332-1345",
+        "Tomás-Barberán FA, et al. Food Funct. 2017;8:1159-1173",
+        "Roager HM, Licht TR. Nat Commun. 2018;9:3294"
+      ]
+    }
+  }
+]

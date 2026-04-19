@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Gut Health Content",
+  "description": "Schema for gut health content documents with FGA authorization context",
+  "type": "object",
+  "required": ["content_id", "title", "topic", "tags", "content", "fga_object_id"],
+  "properties": {
+    "content_id": {
+      "type": "string",
+      "description": "Unique identifier for the content",
+      "pattern": "^[a-z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "description": "Human-readable title of the content"
+    },
+    "topic": {
+      "type": "string",
+      "description": "Primary topic category",
+      "enum": ["microbiome", "probiotics", "digestive-disorders", "nutrition", "gut-brain-axis"]
+    },
+    "tags": {
+      "type": "array",
+      "description": "Access control and categorization tags",
+      "items": {
+        "type": "string",
+        "enum": ["basic", "patient-education", "premium", "clinical", "research"]
+      },
+      "minItems": 1
+    },
+    "content": {
+      "type": "string",
+      "description": "Full text content for embedding and retrieval"
+    },
+    "summary": {
+      "type": "string",
+      "description": "Brief summary of the content"
+    },
+    "fga_object_id": {
+      "type": "string",
+      "description": "FGA object identifier for authorization (format: content:<content_id>)",
+      "pattern": "^content:[a-z0-9-]+$"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source": {
+          "type": "string"
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

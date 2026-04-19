@@ -1,0 +1,28 @@
+{
+  "name": "RAG Health API",
+  "identifier": "https://api.rag-health.example.com",
+  "signing_alg": "RS256",
+  "scopes": [
+    {
+      "value": "read:content",
+      "description": "Query gut health content (FGA determines which specific content)"
+    },
+    {
+      "value": "read:calendar",
+      "description": "Read events from user's Google Calendar"
+    },
+    {
+      "value": "write:calendar",
+      "description": "Create events on user's Google Calendar"
+    },
+    {
+      "value": "read:profile",
+      "description": "Read user profile and subscription info"
+    }
+  ],
+  "token_lifetime": 86400,
+  "token_lifetime_for_web": 7200,
+  "allow_offline_access": true,
+  "skip_consent_for_verifiable_first_party_clients": true,
+  "enforce_policies": true
+}

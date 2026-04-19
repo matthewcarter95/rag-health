@@ -1,0 +1,173 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: RAG Health - FGA-Governed Content Repository with Bedrock Agent
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+  Auth0Domain:
+    Type: String
+    Default: violet-hookworm-18506.cic-demo-platform.auth0app.com
+  Auth0ApiAudience:
+    Type: String
+    Default: https://api.rag-health.example.com
+  FgaStoreId:
+    Type: String
+    Description: Auth0 FGA Store ID
+  FgaApiUrl:
+    Type: String
+    Description: Auth0 FGA API URL
+  FgaModelId:
+    Type: String
+    Description: Auth0 FGA Model ID
+  BedrockModelId:
+    Type: String
+    Default: anthropic.claude-3-5-sonnet-20241022-v2:0
+
+Globals:
+  Function:
+    Runtime: python3.11
+    Timeout: 60
+    MemorySize: 1024
+    Environment:
+      Variables:
+        ENVIRONMENT: !Ref Environment
+        AUTH0_DOMAIN: !Ref Auth0Domain
+        AUTH0_API_AUDIENCE: !Ref Auth0ApiAudience
+        AUTH0_MYACCOUNT_AUDIENCE: !Sub "https://${Auth0Domain}/me/"
+        AUTH0_JWKS_URL: !Sub "https://${Auth0Domain}/.well-known/jwks.json"
+        FGA_STORE_ID: !Ref FgaStoreId
+        FGA_API_URL: !Ref FgaApiUrl
+        FGA_MODEL_ID: !Ref FgaModelId
+        SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
+        S3_CONTENT_BUCKET: !Ref ContentBucket
+        BEDROCK_MODEL_ID: !Ref BedrockModelId
+        AWS_REGION_NAME: us-east-1
+
+Resources:
+  # DynamoDB Table for User Subscriptions
+  SubscriptionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "rag-health-subscriptions-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: user_id
+          AttributeType: S
+        - AttributeName: subscription_tier
+          AttributeType: S
+      KeySchema:
+        - AttributeName: user_id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: subscription-tier-index
+          KeySchema:
+            - AttributeName: subscription_tier
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      Tags:
+        - Key: Application
+          Value: rag-health
+        - Key: Environment
+          Value: !Ref Environment
+
+  # S3 Bucket for Content Documents and FAISS Index
+  ContentBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "rag-health-content-${AWS::AccountId}-${Environment}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Application
+          Value: rag-health
+        - Key: Environment
+          Value: !Ref Environment
+
+  # RAG Agent Lambda Function
+  RagAgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "rag-health-agent-${Environment}"
+      CodeUri: ../../backend/lambda/rag-agent/
+      Handler: handler.lambda_handler
+      MemorySize: 2048
+      Timeout: 120
+      Architectures:
+        - x86_64
+      FunctionUrlConfig:
+        AuthType: NONE
+        Cors:
+          AllowCredentials: true
+          AllowHeaders:
+            - authorization
+            - content-type
+            - x-requested-with
+          AllowMethods:
+            - POST
+            - OPTIONS
+          AllowOrigins:
+            - "*"
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:InvokeModel
+                - bedrock:InvokeModelWithResponseStream
+              Resource:
+                - !Sub "arn:aws:bedrock:us-east-1::foundation-model/${BedrockModelId}"
+                - "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:Query
+              Resource:
+                - !GetAtt SubscriptionsTable.Arn
+                - !Sub "${SubscriptionsTable.Arn}/index/*"
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:ListBucket
+              Resource:
+                - !GetAtt ContentBucket.Arn
+                - !Sub "${ContentBucket.Arn}/*"
+      Tags:
+        Application: rag-health
+        Environment: !Ref Environment
+
+Outputs:
+  RagAgentFunctionUrl:
+    Description: RAG Agent Lambda Function URL
+    Value: !GetAtt RagAgentFunctionUrl.FunctionUrl
+    Export:
+      Name: !Sub "${AWS::StackName}-RagAgentUrl"
+
+  SubscriptionsTableName:
+    Description: DynamoDB Subscriptions Table Name
+    Value: !Ref SubscriptionsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SubscriptionsTable"
+
+  ContentBucketName:
+    Description: S3 Content Bucket Name
+    Value: !Ref ContentBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-ContentBucket"

@@ -1,0 +1,101 @@
+{
+  "writes": [
+    {
+      "_comment": "Basic tier users - all authenticated users get basic access",
+      "user": "user:auth0|basic-user-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|basic-user-002",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "_comment": "Premium tier users - paid subscribers",
+      "user": "user:auth0|premium-user-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    },
+    {
+      "user": "user:auth0|premium-user-002",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    },
+    {
+      "_comment": "Premium users also get basic access (hierarchical)",
+      "user": "user:auth0|premium-user-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|premium-user-002",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "_comment": "Healthcare providers",
+      "user": "user:auth0|provider-001",
+      "relation": "member",
+      "object": "role:healthcare_provider"
+    },
+    {
+      "user": "user:auth0|provider-002",
+      "relation": "member",
+      "object": "role:healthcare_provider"
+    },
+    {
+      "_comment": "Healthcare providers also get basic and premium access",
+      "user": "user:auth0|provider-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|provider-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    },
+    {
+      "user": "user:auth0|provider-002",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|provider-002",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    },
+    {
+      "_comment": "Researchers",
+      "user": "user:auth0|researcher-001",
+      "relation": "member",
+      "object": "role:researcher"
+    },
+    {
+      "user": "user:auth0|researcher-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|researcher-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    },
+    {
+      "_comment": "Clinical reviewers - have access to both clinical and research content",
+      "user": "user:auth0|reviewer-001",
+      "relation": "member",
+      "object": "role:clinical_reviewer"
+    },
+    {
+      "user": "user:auth0|reviewer-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:basic"
+    },
+    {
+      "user": "user:auth0|reviewer-001",
+      "relation": "subscriber",
+      "object": "subscription_tier:premium"
+    }
+  ]
+}

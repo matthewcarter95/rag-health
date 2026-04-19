@@ -1,0 +1,67 @@
+[
+  {
+    "content_id": "digestive-basics-001",
+    "title": "Common Digestive Issues and When to Seek Help",
+    "topic": "digestive-disorders",
+    "tags": ["basic", "patient-education"],
+    "summary": "Overview of common digestive problems and guidance on when to consult a healthcare provider.",
+    "content": "Digestive issues are extremely common, with most adults experiencing occasional problems like bloating, gas, heartburn, or irregular bowel movements. Understanding what's normal and when to seek help is important for maintaining gut health. Common digestive issues include: Bloating and Gas - Often caused by swallowing air, eating too quickly, or consuming gas-producing foods like beans, cruciferous vegetables, and carbonated drinks. Usually resolves on its own. Heartburn/Acid Reflux - A burning sensation in the chest caused by stomach acid flowing back into the esophagus. Occasional heartburn is normal; frequent heartburn (more than twice weekly) may indicate GERD. Constipation - Fewer than three bowel movements per week or difficulty passing stool. Often improved with increased fiber, water, and physical activity. Diarrhea - Loose, watery stools. Acute diarrhea usually resolves within a few days. Seek help if it persists beyond 48-72 hours. When to seek medical attention: blood in stool, unexplained weight loss, persistent changes in bowel habits, severe abdominal pain, difficulty swallowing, persistent vomiting, symptoms that wake you from sleep, or any symptoms lasting more than two weeks. These could indicate conditions requiring professional evaluation such as inflammatory bowel disease, celiac disease, or other conditions that benefit from early diagnosis and treatment.",
+    "fga_object_id": "content:digestive-basics-001",
+    "metadata": {
+      "author": "RAG Health Editorial Team",
+      "created_at": "2024-01-22T10:00:00Z",
+      "source": "patient-education"
+    }
+  },
+  {
+    "content_id": "digestive-advanced-001",
+    "title": "Managing IBS: A Comprehensive Approach",
+    "topic": "digestive-disorders",
+    "tags": ["premium"],
+    "summary": "In-depth guide to understanding and managing Irritable Bowel Syndrome.",
+    "content": "Irritable Bowel Syndrome (IBS) is a functional gastrointestinal disorder affecting 10-15% of the global population. Effective management requires a multi-faceted approach addressing diet, lifestyle, stress, and targeted interventions. Diagnostic Criteria (Rome IV): Recurrent abdominal pain at least 1 day/week in the last 3 months, associated with two or more of: related to defecation, associated with change in stool frequency, associated with change in stool form. Subtypes: IBS-C (constipation), IBS-D (diarrhea), IBS-M (mixed). Dietary Interventions: The Low-FODMAP diet is the most evidence-based dietary approach, with 50-80% of patients experiencing symptom improvement. FODMAP stands for Fermentable Oligosaccharides, Disaccharides, Monosaccharides, and Polyols. Implementation involves: 1) Elimination phase (2-6 weeks) removing high-FODMAP foods; 2) Reintroduction phase testing each FODMAP group; 3) Personalization phase creating a sustainable long-term diet. High-FODMAP foods to limit: wheat, rye, onions, garlic, legumes, lactose-containing dairy, apples, pears, stone fruits, honey, and sugar alcohols. Fiber considerations: Soluble fiber (psyllium) often helpful; insoluble fiber may worsen symptoms. Lifestyle Factors: Regular physical activity reduces IBS symptoms. Sleep hygiene is important as poor sleep exacerbates symptoms. Gut-directed hypnotherapy has Level A evidence for IBS. Stress management through mindfulness-based stress reduction shows significant benefit. Targeted Supplements: Peppermint oil (enteric-coated) for pain and bloating. L-glutamine for IBS-D. Specific probiotic strains (B. infantis 35624, VSL#3).",
+    "fga_object_id": "content:digestive-advanced-001",
+    "metadata": {
+      "author": "Dr. Emily Watson, Gastroenterologist",
+      "created_at": "2024-02-08T10:00:00Z",
+      "source": "premium-content"
+    }
+  },
+  {
+    "content_id": "clinical-digestive-001",
+    "title": "Clinical Management of Inflammatory Bowel Disease",
+    "topic": "digestive-disorders",
+    "tags": ["clinical"],
+    "summary": "Evidence-based protocols for managing Crohn's disease and ulcerative colitis.",
+    "content": "Inflammatory Bowel Disease (IBD) encompasses Crohn's disease (CD) and ulcerative colitis (UC), requiring individualized treatment strategies based on disease phenotype, severity, and patient factors. Diagnostic Workup: Ileocolonoscopy with biopsies remains the gold standard. Fecal calprotectin >250 μg/g strongly suggests active inflammation. MR enterography for small bowel CD assessment. Consider capsule endoscopy if MRE non-diagnostic. Exclude infection (C. difficile, CMV in immunosuppressed). Ulcerative Colitis Treatment Algorithm: Mild-moderate proctitis/left-sided: topical mesalazine first-line (suppositories for proctitis, enemas for left-sided). Mild-moderate extensive: oral mesalazine 2.4-4.8g/day + topical therapy. Moderate-severe: systemic corticosteroids for induction (prednisolone 40mg or IV hydrocortisone if hospitalized). Steroid-dependent/refractory: thiopurines (azathioprine, 6-MP), anti-TNF (infliximab, adalimumab), vedolizumab, tofacitinib, or ustekinumab. Acute severe UC (Truelove and Witts criteria): IV corticosteroids, assess day 3 (Travis criteria), early surgical consultation, rescue therapy (infliximab or ciclosporin) if failing steroids. Crohn's Disease Treatment Algorithm: Mild ileal/ileocolonic: budesonide 9mg/day. Moderate-severe: systemic steroids for induction, early biologic therapy for high-risk phenotype (young age, perianal disease, extensive small bowel, deep ulcers). Anti-TNF agents (infliximab, adalimumab) remain first-line biologics; vedolizumab for TNF-failure or contraindication; ustekinumab increasingly used first-line. Combination therapy (anti-TNF + thiopurine) reduces immunogenicity and improves outcomes. Perianal CD: MRI pelvis for fistula assessment, seton drainage, anti-TNF therapy, consider surgical repair once inflammation controlled. Monitoring: Regular calprotectin monitoring (target <150-250 μg/g). Therapeutic drug monitoring for biologics to optimize dosing. Endoscopic reassessment to confirm mucosal healing.",
+    "fga_object_id": "content:clinical-digestive-001",
+    "metadata": {
+      "author": "Dr. James Thompson, IBD Specialist",
+      "created_at": "2024-02-25T10:00:00Z",
+      "source": "clinical-guidelines",
+      "citations": [
+        "Lamb CA, et al. Gut. 2019;68:s1-s106 (BSG IBD Guidelines)",
+        "Feuerstein JD, et al. Gastroenterology. 2020;158:1450-1461 (AGA UC Guidelines)"
+      ]
+    }
+  },
+  {
+    "content_id": "research-digestive-001",
+    "title": "Gut Barrier Dysfunction: Mechanisms and Therapeutic Targets",
+    "topic": "digestive-disorders",
+    "tags": ["research"],
+    "summary": "Current research on intestinal permeability and its role in disease pathogenesis.",
+    "content": "Intestinal barrier dysfunction, colloquially termed 'leaky gut,' represents a convergence point in the pathogenesis of numerous gastrointestinal and systemic diseases. Barrier Components and Regulation: The intestinal barrier comprises: (1) The mucus layer - outer loose layer containing commensal bacteria, inner dense layer largely sterile, produced by goblet cells, requires MUC2 and proper glycosylation; (2) The epithelial layer - single layer of intestinal epithelial cells (IECs) connected by tight junctions (claudins, occludin, ZO proteins), adherens junctions, and desmosomes; (3) Immune layer - secretory IgA, antimicrobial peptides (defensins, RegIIIγ), and lamina propria immune cells. Mechanisms of Barrier Dysfunction: Zonulin pathway: Gliadin and bacteria trigger zonulin release, causing tight junction disassembly. Elevated zonulin in celiac disease, T1DM, and IBD. MLCK activation: TNF-α, IL-1β, and IFN-γ activate myosin light chain kinase, increasing paracellular permeability. Epithelial apoptosis: Excessive IEC death creates barrier gaps; seen in IBD and NSAID enteropathy. Mucus layer defects: Reduced MUC2 expression or altered glycosylation allows bacterial contact with epithelium. Dysbiosis: Loss of barrier-supporting species (F. prausnitzii, A. muciniphila) and expansion of pathobionts. Therapeutic Targets Under Investigation: Zonulin antagonists (larazotide acetate) - Phase III trials in celiac disease. MLCK inhibitors - Preclinical development. Short-chain fatty acid supplementation (butyrate) - Enhances barrier function, Phase II trials. A. muciniphila supplementation - Strengthens mucus layer. IL-22 agonists - Promotes epithelial regeneration and antimicrobial peptide production. Measurement and Biomarkers: Lactulose/mannitol ratio remains research standard but has practical limitations. Serum zonulin, LPS-binding protein, and intestinal fatty acid binding protein (I-FABP) as potential clinical biomarkers. Confocal laser endomicroscopy allows real-time in vivo barrier assessment.",
+    "fga_object_id": "content:research-digestive-001",
+    "metadata": {
+      "author": "Dr. Christopher Lee, Mucosal Immunology Research",
+      "created_at": "2024-03-10T10:00:00Z",
+      "source": "research-review",
+      "citations": [
+        "Fasano A. Physiol Rev. 2011;91:151-175",
+        "Odenwald MA, Turner JR. Nat Rev Gastroenterol Hepatol. 2017;14:9-21",
+        "Linsalata M, et al. Nutrients. 2020;12(4):1068"
+      ]
+    }
+  }
+]

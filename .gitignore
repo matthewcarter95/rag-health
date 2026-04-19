@@ -137,3 +137,37 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+#Auth MCP Creds
+auth0_management_client_m2m_cred.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+env/
+.egg-info/
+*.egg
+
+# SAM build artifacts
+.aws-sam/
+samconfig.toml
+
+# Vector store (large binary files)
+content/vectorstore/*.faiss
+content/vectorstore/*.pkl
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
