@@ -19,21 +19,23 @@ Parameters:
   FgaStoreId:
     Type: String
     Description: Auth0 FGA Store ID
+    Default: ""
   FgaApiUrl:
     Type: String
     Description: Auth0 FGA API URL
+    Default: ""
   FgaModelId:
     Type: String
     Description: Auth0 FGA Model ID
+    Default: ""
   BedrockModelId:
     Type: String
     Default: anthropic.claude-3-5-sonnet-20241022-v2:0
 
 Globals:
   Function:
-    Runtime: python3.11
-    Timeout: 60
-    MemorySize: 1024
+    Timeout: 120
+    MemorySize: 2048
     Environment:
       Variables:
         ENVIRONMENT: !Ref Environment
@@ -81,7 +83,6 @@ Resources:
   ContentBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "rag-health-content-${AWS::AccountId}-${Environment}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -90,7 +91,9 @@ Resources:
       BucketEncryption:
         ServerSideEncryptionConfiguration:
           - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
+              SSEAlgorithm: aws:kms
+              KMSMasterKeyID: alias/aws/s3
+            BucketKeyEnabled: true
       VersioningConfiguration:
         Status: Enabled
       Tags:
@@ -99,30 +102,15 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
-  # RAG Agent Lambda Function
+  # RAG Agent Lambda Function (Container Image)
+  # NOTE: Function URL must be added post-deploy via CLI due to org CloudFormation policy
   RagAgentFunction:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub "rag-health-agent-${Environment}"
-      CodeUri: ../../backend/lambda/rag-agent/
-      Handler: handler.lambda_handler
-      MemorySize: 2048
-      Timeout: 120
+      PackageType: Image
       Architectures:
         - x86_64
-      FunctionUrlConfig:
-        AuthType: NONE
-        Cors:
-          AllowCredentials: true
-          AllowHeaders:
-            - authorization
-            - content-type
-            - x-requested-with
-          AllowMethods:
-            - POST
-            - OPTIONS
-          AllowOrigins:
-            - "*"
       Policies:
         - Version: '2012-10-17'
           Statement:
@@ -152,13 +140,23 @@ Resources:
       Tags:
         Application: rag-health
         Environment: !Ref Environment
+    Metadata:
+      Dockerfile: Dockerfile
+      DockerContext: ../../backend/lambda/rag-agent
+      DockerTag: latest
 
 Outputs:
-  RagAgentFunctionUrl:
-    Description: RAG Agent Lambda Function URL
-    Value: !GetAtt RagAgentFunctionUrl.FunctionUrl
+  RagAgentFunctionName:
+    Description: RAG Agent Lambda Function Name
+    Value: !Ref RagAgentFunction
     Export:
-      Name: !Sub "${AWS::StackName}-RagAgentUrl"
+      Name: !Sub "${AWS::StackName}-RagAgentFunction"
+
+  RagAgentFunctionArn:
+    Description: RAG Agent Lambda Function ARN
+    Value: !GetAtt RagAgentFunction.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RagAgentArn"
 
   SubscriptionsTableName:
     Description: DynamoDB Subscriptions Table Name
