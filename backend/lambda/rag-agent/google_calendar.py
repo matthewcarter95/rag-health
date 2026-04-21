@@ -1,20 +1,33 @@
 """
 Google Calendar Integration Module
 
-Integrates with Google Calendar via Auth0 MyAccount token vaulting (Connected Accounts).
+Integrates with Google Calendar via Auth0 Management API or Token Exchange.
+Retrieves Google access tokens from linked/connected accounts.
 """
 
 import os
+import logging
 from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 
 import requests
 
+logger = logging.getLogger(__name__)
+
 # Configuration
 AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "violet-hookworm-18506.cic-demo-platform.auth0app.com")
-MYACCOUNT_BASE_URL = f"https://{AUTH0_DOMAIN}/me"
+AUTH0_CLIENT_ID = os.environ.get("AUTH0_CLIENT_ID", "")
+AUTH0_CLIENT_SECRET = os.environ.get("AUTH0_CLIENT_SECRET", "")
+AUTH0_M2M_CLIENT_ID = os.environ.get("AUTH0_M2M_CLIENT_ID", "")
+AUTH0_M2M_CLIENT_SECRET = os.environ.get("AUTH0_M2M_CLIENT_SECRET", "")
+MYACCOUNT_BASE_URL = f"https://{AUTH0_DOMAIN}/me/v1"
+AUTH0_TOKEN_URL = f"https://{AUTH0_DOMAIN}/oauth/token"
+AUTH0_MGMT_API = f"https://{AUTH0_DOMAIN}/api/v2"
 
 GOOGLE_CALENDAR_API_BASE = "https://www.googleapis.com/calendar/v3"
+
+# Cache for M2M token
+_m2m_token_cache: Dict[str, Any] = {}
 
 
 class CalendarError(Exception):
@@ -26,25 +39,66 @@ class CalendarError(Exception):
         super().__init__(message)
 
 
-def get_google_token_from_myaccount(user_access_token: str) -> Optional[str]:
+def get_m2m_token() -> Optional[str]:
     """
-    Fetch vaulted Google OAuth token from Auth0 MyAccount API.
-
-    The user must have connected their Google account via Auth0 Connected Accounts
-    (Social Connection with token vaulting enabled).
-
-    Args:
-        user_access_token: User's Auth0 access token (must have MyAccount audience)
+    Get an M2M access token for the Auth0 Management API.
 
     Returns:
-        Google OAuth access token or None if not connected
+        Management API access token or None
+    """
+    global _m2m_token_cache
 
-    Raises:
-        CalendarError: If API call fails
+    # Check cache
+    if _m2m_token_cache.get("token") and _m2m_token_cache.get("expires_at", 0) > datetime.utcnow().timestamp():
+        return _m2m_token_cache["token"]
+
+    if not AUTH0_M2M_CLIENT_ID or not AUTH0_M2M_CLIENT_SECRET:
+        print("[Calendar] Missing M2M client credentials")
+        return None
+
+    try:
+        response = requests.post(
+            AUTH0_TOKEN_URL,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": AUTH0_M2M_CLIENT_ID,
+                "client_secret": AUTH0_M2M_CLIENT_SECRET,
+                "audience": AUTH0_MGMT_API,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            _m2m_token_cache["token"] = data.get("access_token")
+            _m2m_token_cache["expires_at"] = datetime.utcnow().timestamp() + data.get("expires_in", 3600) - 60
+            return _m2m_token_cache["token"]
+
+        print(f"[Calendar] Failed to get M2M token: {response.status_code} - {response.text}")
+        return None
+
+    except Exception as e:
+        print(f"[Calendar] Error getting M2M token: {e}")
+        return None
+
+
+def check_google_connected(user_access_token: str) -> bool:
+    """
+    Check if user has connected their Google account via Auth0 Connected Accounts.
+
+    Args:
+        user_access_token: User's Auth0 access token (MyAccount audience)
+
+    Returns:
+        True if Google is connected, False otherwise
     """
     try:
+        url = f"{MYACCOUNT_BASE_URL}/connected-accounts/accounts"
+        print(f"[Calendar] Checking connected accounts at: {url}")
+
         response = requests.get(
-            f"{MYACCOUNT_BASE_URL}/linked-accounts",
+            url,
             headers={
                 "Authorization": f"Bearer {user_access_token}",
                 "Content-Type": "application/json",
@@ -52,30 +106,223 @@ def get_google_token_from_myaccount(user_access_token: str) -> Optional[str]:
             timeout=10,
         )
 
-        if response.status_code == 401:
-            raise CalendarError("Invalid or expired access token", 401)
-
         if response.status_code != 200:
-            raise CalendarError(
-                f"MyAccount API error: {response.status_code}",
-                response.status_code
-            )
+            print(f"[Calendar] Connected accounts check failed: {response.status_code}")
+            return False
 
-        accounts = response.json()
+        data = response.json()
+        accounts = data.get("accounts", data) if isinstance(data, dict) else data
 
-        # Find Google account
-        google_account = next(
-            (acc for acc in accounts if acc.get("provider") == "google-oauth2"),
-            None
+        for acc in accounts:
+            conn = acc.get("connection", "").lower()
+            if "google" in conn:
+                print(f"[Calendar] Found Google connected account: {acc.get('id')}")
+                return True
+
+        print("[Calendar] No Google account found in connected accounts")
+        return False
+
+    except Exception as e:
+        print(f"[Calendar] Error checking connected accounts: {e}")
+        return False
+
+
+def get_google_token_via_management_api(user_id: str) -> Optional[str]:
+    """
+    Get Google access token via Auth0 Management API.
+
+    Uses the Management API to fetch the user's identities and extract
+    the Google identity provider access token.
+
+    Args:
+        user_id: Auth0 user ID (sub claim from JWT)
+
+    Returns:
+        Google OAuth access token or None
+
+    Raises:
+        CalendarError: If API call fails
+    """
+    m2m_token = get_m2m_token()
+    if not m2m_token:
+        print("[Calendar] Cannot get M2M token for Management API")
+        raise CalendarError(
+            "Server configuration error: M2M credentials not configured for Management API",
+            500
         )
 
-        if google_account is None:
-            return None
+    try:
+        # URL encode the user_id (it contains |)
+        import urllib.parse
+        encoded_user_id = urllib.parse.quote(user_id, safe='')
 
-        return google_account.get("access_token")
+        url = f"{AUTH0_MGMT_API}/users/{encoded_user_id}"
+        print(f"[Calendar] Fetching user from Management API: {url}")
+
+        response = requests.get(
+            url,
+            headers={
+                "Authorization": f"Bearer {m2m_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+
+        print(f"[Calendar] Management API response status: {response.status_code}")
+
+        if response.status_code != 200:
+            print(f"[Calendar] Management API error: {response.text}")
+            raise CalendarError(f"Failed to fetch user: {response.status_code}", response.status_code)
+
+        user_data = response.json()
+        identities = user_data.get("identities", [])
+
+        print(f"[Calendar] User has {len(identities)} identities")
+
+        # Find Google identity
+        for identity in identities:
+            provider = identity.get("provider", "")
+            if "google" in provider.lower():
+                access_token = identity.get("access_token")
+                if access_token:
+                    print("[Calendar] Found Google access token in user identity")
+                    return access_token
+                print("[Calendar] Google identity found but no access_token")
+
+        print("[Calendar] No Google identity with access_token found")
+        return None
 
     except requests.RequestException as e:
-        raise CalendarError(f"Failed to fetch linked accounts: {str(e)}")
+        print(f"[Calendar] Management API request exception: {str(e)}")
+        raise CalendarError(f"Failed to fetch user identities: {str(e)}")
+
+
+def get_google_token_via_token_exchange(user_refresh_token: str) -> Optional[str]:
+    """
+    Get Google access token via Auth0 Federated Connection Token Exchange.
+
+    Uses the federated-connection-access-token grant to exchange a user's
+    refresh token for a Google access token.
+
+    Args:
+        user_refresh_token: User's Auth0 refresh token
+
+    Returns:
+        Google OAuth access token or None if exchange fails
+
+    Raises:
+        CalendarError: If token exchange fails
+    """
+    if not AUTH0_CLIENT_ID or not AUTH0_CLIENT_SECRET:
+        print("[Calendar] Missing AUTH0_CLIENT_ID or AUTH0_CLIENT_SECRET")
+        raise CalendarError(
+            "Server configuration error: Auth0 client credentials not configured",
+            500
+        )
+
+    try:
+        print(f"[Calendar] Performing token exchange for Google access token")
+
+        payload = {
+            "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
+            "subject_token": user_refresh_token,
+            "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+            "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
+            "connection": "google-oauth2",
+            "client_id": AUTH0_CLIENT_ID,
+            "client_secret": AUTH0_CLIENT_SECRET,
+        }
+
+        response = requests.post(
+            AUTH0_TOKEN_URL,
+            data=payload,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=15,
+        )
+
+        print(f"[Calendar] Token exchange response status: {response.status_code}")
+
+        if response.status_code == 200:
+            token_data = response.json()
+            access_token = token_data.get("access_token")
+            if access_token:
+                print("[Calendar] Successfully obtained Google access token via token exchange")
+                return access_token
+            print("[Calendar] Token exchange response missing access_token")
+            return None
+
+        error_data = response.json() if response.text else {}
+        error_msg = error_data.get("error_description", error_data.get("error", response.text))
+        print(f"[Calendar] Token exchange failed: {error_msg}")
+
+        if response.status_code == 400:
+            if "invalid_grant" in str(error_data.get("error", "")):
+                return None  # User needs to re-connect Google
+            raise CalendarError(f"Token exchange error: {error_msg}", 400)
+
+        raise CalendarError(f"Token exchange failed: {error_msg}", response.status_code)
+
+    except requests.RequestException as e:
+        print(f"[Calendar] Token exchange request exception: {str(e)}")
+        raise CalendarError(f"Failed to exchange token: {str(e)}")
+
+
+def get_google_token_from_myaccount(
+    user_access_token: str,
+    user_refresh_token: str = "",
+    user_id: str = ""
+) -> Optional[str]:
+    """
+    Get Google OAuth token for calendar access.
+
+    Tries multiple methods in order:
+    1. Management API (if M2M credentials configured and user_id provided)
+    2. Token exchange (if refresh token provided)
+
+    Args:
+        user_access_token: User's Auth0 access token (MyAccount audience)
+        user_refresh_token: User's Auth0 refresh token (for token exchange)
+        user_id: Auth0 user ID (for Management API)
+
+    Returns:
+        Google OAuth access token or None if not connected
+
+    Raises:
+        CalendarError: If API call fails
+    """
+    # First check if Google is connected
+    if not check_google_connected(user_access_token):
+        return None
+
+    # Method 1: Try Management API if we have user_id and M2M credentials
+    if user_id and AUTH0_M2M_CLIENT_ID and AUTH0_M2M_CLIENT_SECRET:
+        try:
+            print("[Calendar] Attempting to get Google token via Management API")
+            token = get_google_token_via_management_api(user_id)
+            if token:
+                return token
+            print("[Calendar] Management API didn't return a token, trying other methods")
+        except CalendarError as e:
+            print(f"[Calendar] Management API failed: {e.message}, trying other methods")
+
+    # Method 2: Try token exchange if we have a refresh token
+    if user_refresh_token and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET:
+        try:
+            print("[Calendar] Attempting to get Google token via token exchange")
+            token = get_google_token_via_token_exchange(user_refresh_token)
+            if token:
+                return token
+        except CalendarError as e:
+            print(f"[Calendar] Token exchange failed: {e.message}")
+            raise
+
+    # No method available
+    print("[Calendar] No method available to retrieve Google token")
+    raise CalendarError(
+        "Cannot retrieve Google Calendar access token. "
+        "Server needs M2M credentials or user refresh token.",
+        500
+    )
 
 
 def list_calendar_events(
@@ -256,23 +503,34 @@ def format_events_for_display(events: List[Dict[str, Any]]) -> str:
 
 # LangChain Tool Functions
 
-def list_events_tool(user_access_token: str) -> str:
+def list_events_tool(
+    user_access_token: str,
+    user_refresh_token: str = "",
+    user_id: str = ""
+) -> str:
     """
     LangChain tool function to list calendar events.
 
     Args:
-        user_access_token: User's Auth0 access token
+        user_access_token: User's Auth0 access token (MyAccount audience)
+        user_refresh_token: User's Auth0 refresh token (for token exchange)
+        user_id: Auth0 user ID (for Management API)
 
     Returns:
         Formatted string of upcoming events or error message
     """
     try:
-        google_token = get_google_token_from_myaccount(user_access_token)
+        google_token = get_google_token_from_myaccount(
+            user_access_token,
+            user_refresh_token,
+            user_id
+        )
 
         if google_token is None:
             return (
-                "Google Calendar is not connected. Please connect your Google account "
-                "in your profile settings to enable calendar features."
+                "Google Calendar is not connected. You have authorized calendar access, but "
+                "you still need to link your Google account through Auth0 Connected Accounts. "
+                "This requires initiating a connection request via the MyAccount API."
             )
 
         events = list_calendar_events(google_token)
@@ -286,26 +544,34 @@ def list_events_tool(user_access_token: str) -> str:
 
 def create_event_tool(
     user_access_token: str,
+    user_refresh_token: str,
     summary: str,
     start_time: str,
     end_time: str,
     description: Optional[str] = None,
+    user_id: str = "",
 ) -> str:
     """
     LangChain tool function to create a calendar event.
 
     Args:
-        user_access_token: User's Auth0 access token
+        user_access_token: User's Auth0 access token (MyAccount audience)
+        user_refresh_token: User's Auth0 refresh token (for token exchange)
         summary: Event title
         start_time: ISO format datetime string
         end_time: ISO format datetime string
         description: Optional event description
+        user_id: Auth0 user ID (for Management API)
 
     Returns:
         Confirmation message or error
     """
     try:
-        google_token = get_google_token_from_myaccount(user_access_token)
+        google_token = get_google_token_from_myaccount(
+            user_access_token,
+            user_refresh_token,
+            user_id
+        )
 
         if google_token is None:
             return (

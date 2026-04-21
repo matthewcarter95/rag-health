@@ -28,9 +28,36 @@ Parameters:
     Type: String
     Description: Auth0 FGA Model ID
     Default: ""
+  FgaClientId:
+    Type: String
+    Description: Auth0 FGA Client ID for API authentication
+    Default: ""
+  FgaClientSecret:
+    Type: String
+    Description: Auth0 FGA Client Secret for API authentication
+    NoEcho: true
+    Default: ""
+  Auth0ClientId:
+    Type: String
+    Description: Auth0 Application Client ID (for token exchange)
+    Default: ""
+  Auth0ClientSecret:
+    Type: String
+    Description: Auth0 Application Client Secret (for token exchange)
+    NoEcho: true
+    Default: ""
+  Auth0M2MClientId:
+    Type: String
+    Description: Auth0 M2M Client ID (for Management API access)
+    Default: ""
+  Auth0M2MClientSecret:
+    Type: String
+    Description: Auth0 M2M Client Secret (for Management API access)
+    NoEcho: true
+    Default: ""
   BedrockModelId:
     Type: String
-    Default: anthropic.claude-3-5-sonnet-20241022-v2:0
+    Default: us.anthropic.claude-3-5-haiku-20241022-v1:0
 
 Globals:
   Function:
@@ -46,6 +73,12 @@ Globals:
         FGA_STORE_ID: !Ref FgaStoreId
         FGA_API_URL: !Ref FgaApiUrl
         FGA_MODEL_ID: !Ref FgaModelId
+        FGA_CLIENT_ID: !Ref FgaClientId
+        FGA_CLIENT_SECRET: !Ref FgaClientSecret
+        AUTH0_CLIENT_ID: !Ref Auth0ClientId
+        AUTH0_CLIENT_SECRET: !Ref Auth0ClientSecret
+        AUTH0_M2M_CLIENT_ID: !Ref Auth0M2MClientId
+        AUTH0_M2M_CLIENT_SECRET: !Ref Auth0M2MClientSecret
         SUBSCRIPTIONS_TABLE_NAME: !Ref SubscriptionsTable
         S3_CONTENT_BUCKET: !Ref ContentBucket
         BEDROCK_MODEL_ID: !Ref BedrockModelId
@@ -121,6 +154,9 @@ Resources:
               Resource:
                 - !Sub "arn:aws:bedrock:us-east-1::foundation-model/${BedrockModelId}"
                 - "arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0"
+                - "arn:aws:bedrock:*::foundation-model/anthropic.claude-*"
+                - !Sub "arn:aws:bedrock:us-east-1:${AWS::AccountId}:inference-profile/*"
+                - "arn:aws:bedrock:*::foundation-model/*"
             - Effect: Allow
               Action:
                 - dynamodb:GetItem

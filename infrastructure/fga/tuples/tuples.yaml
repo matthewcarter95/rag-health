@@ -1,0 +1,27 @@
+# ABAC Model: No direct content tuples needed
+#
+# With the ABAC approach, content permissions are determined dynamically through:
+#
+# 1. Tag tuples (loaded at model setup - see tag-tuples.yaml):
+#    - subscription_tier:basic#subscriber -> viewer -> content_tag:basic
+#    - subscription_tier:premium#subscriber -> viewer -> content_tag:premium
+#    - role:healthcare_provider#member -> viewer -> content_tag:clinical
+#    - etc.
+#
+# 2. Contextual tuples (passed at check time):
+#    - user:<id> is subscriber of subscription_tier:<tier>
+#    - user:<id> is member of role:<role>
+#    - content_tag:<tag> is tagged on content:<id>
+#
+# The FGA model resolves: user -> tier/role -> tag -> content
+#
+# Benefits of ABAC over direct content tuples:
+# - No need to create tuples for each new content item
+# - Permission changes apply to all content with a given tag
+# - Scales to unlimited content without tuple explosion
+# - Content teams can manage access by simply tagging content appropriately
+#
+# Direct owner assignments (if needed for content editors):
+# - user: user:auth0|admin-user-id
+#   relation: owner
+#   object: content:some-content-id

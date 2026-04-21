@@ -1,0 +1,67 @@
+[
+  {
+    "user": "subscription_tier:basic#subscriber",
+    "relation": "viewer",
+    "object": "content_tag:basic"
+  },
+  {
+    "user": "subscription_tier:premium#subscriber",
+    "relation": "viewer",
+    "object": "content_tag:premium"
+  },
+  {
+    "user": "subscription_tier:premium#subscriber",
+    "relation": "viewer",
+    "object": "content_tag:basic"
+  },
+  {
+    "user": "role:healthcare_provider#member",
+    "relation": "viewer",
+    "object": "content_tag:clinical"
+  },
+  {
+    "user": "role:healthcare_provider#member",
+    "relation": "viewer",
+    "object": "content_tag:premium"
+  },
+  {
+    "user": "role:healthcare_provider#member",
+    "relation": "viewer",
+    "object": "content_tag:basic"
+  },
+  {
+    "user": "role:researcher#member",
+    "relation": "viewer",
+    "object": "content_tag:research"
+  },
+  {
+    "user": "role:researcher#member",
+    "relation": "viewer",
+    "object": "content_tag:premium"
+  },
+  {
+    "user": "role:researcher#member",
+    "relation": "viewer",
+    "object": "content_tag:basic"
+  },
+  {
+    "user": "role:clinical_reviewer#member",
+    "relation": "viewer",
+    "object": "content_tag:clinical"
+  },
+  {
+    "user": "role:clinical_reviewer#member",
+    "relation": "viewer",
+    "object": "content_tag:research"
+  },
+  {
+    "user": "role:clinical_reviewer#member",
+    "relation": "viewer",
+    "object": "content_tag:premium"
+  },
+  {
+    "user": "role:clinical_reviewer#member",
+    "relation": "viewer",
+    "object": "content_tag:basic"
+  }
+]

@@ -1,0 +1,33 @@
+# ABAC Tuples: Subscription Tiers -> Content Tags
+# These define which subscription tiers can access which content tags
+
+# Basic subscribers can view basic-tagged content
+- user: subscription_tier:basic#subscriber
+  relation: viewer
+  object: content_tag:basic
+
+# Premium subscribers can view premium-tagged content AND basic content
+- user: subscription_tier:premium#subscriber
+  relation: viewer
+  object: content_tag:premium
+- user: subscription_tier:premium#subscriber
+  relation: viewer
+  object: content_tag:basic
+
+# Healthcare providers can view clinical-tagged content
+- user: role:healthcare_provider#member
+  relation: viewer
+  object: content_tag:clinical
+
+# Researchers can view research-tagged content
+- user: role:researcher#member
+  relation: viewer
+  object: content_tag:research
+
+# Clinical reviewers can view both clinical and research content
+- user: role:clinical_reviewer#member
+  relation: viewer
+  object: content_tag:clinical
+- user: role:clinical_reviewer#member
+  relation: viewer
+  object: content_tag:research

@@ -1,0 +1,23 @@
+model
+  schema 1.1
+
+type user
+
+type subscription_tier
+  relations
+    define subscriber: [user]
+
+type role
+  relations
+    define member: [user]
+
+type content_tag
+  relations
+    define viewer: [subscription_tier#subscriber, role#member]
+
+type content
+  relations
+    define owner: [user]
+    define tagged: [content_tag]
+    define viewer: [user, subscription_tier#subscriber, role#member] or viewer from tagged
+    define can_view: viewer or owner

@@ -67,8 +67,12 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
         return create_response(400, {"error": "Query is required"})
 
     try:
-        # Create RAG chain for this user (with FGA filtering)
-        chain = create_rag_chain(user_id=user_context["user_id"])
+        # Create RAG chain for this user (with FGA ABAC filtering)
+        chain = create_rag_chain(
+            user_id=user_context["user_id"],
+            subscription_tier=user_context["subscription_tier"],
+            roles=user_context.get("roles", []),
+        )
 
         # Run the chain
         response = chain.invoke(query)
@@ -83,19 +87,33 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
         return create_response(500, {"error": f"Failed to process query: {str(e)}"})
 
 
-def handle_calendar_list(user_context: Dict[str, Any], access_token: str) -> Dict[str, Any]:
+def handle_calendar_list(
+    user_context: Dict[str, Any],
+    myaccount_token: str,
+    refresh_token: str = ""
+) -> Dict[str, Any]:
     """
     Handle calendar event listing requests.
 
     Args:
         user_context: Authenticated user context
-        access_token: User's Auth0 access token (for MyAccount API)
+        myaccount_token: User's Auth0 MyAccount token (for checking connected accounts)
+        refresh_token: User's Auth0 refresh token (for token exchange)
 
     Returns:
         Response with calendar events
     """
+    if not myaccount_token:
+        return create_response(400, {
+            "error": "MyAccount token required. Include 'myaccount_token' in request body or query."
+        })
+
     try:
-        events_display = list_events_tool(access_token)
+        events_display = list_events_tool(
+            myaccount_token,
+            refresh_token,
+            user_context.get("user_id", "")
+        )
 
         return create_response(200, {
             "events": events_display,
@@ -108,7 +126,6 @@ def handle_calendar_list(user_context: Dict[str, Any], access_token: str) -> Dic
 
 def handle_calendar_create(
     user_context: Dict[str, Any],
-    access_token: str,
     body: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
@@ -116,16 +133,22 @@ def handle_calendar_create(
 
     Args:
         user_context: Authenticated user context
-        access_token: User's Auth0 access token
-        body: Request body with event details
+        body: Request body with event details, myaccount_token, and refresh_token
 
     Returns:
         Response with created event confirmation
     """
+    myaccount_token = body.get("myaccount_token", "")
+    refresh_token = body.get("refresh_token", "")
     summary = body.get("summary", "").strip()
     start_time = body.get("start_time", "").strip()
     end_time = body.get("end_time", "").strip()
     description = body.get("description")
+
+    if not myaccount_token:
+        return create_response(400, {
+            "error": "myaccount_token is required for calendar operations"
+        })
 
     if not summary or not start_time or not end_time:
         return create_response(400, {
@@ -134,11 +157,13 @@ def handle_calendar_create(
 
     try:
         result = create_event_tool(
-            user_access_token=access_token,
+            user_access_token=myaccount_token,
+            user_refresh_token=refresh_token,
             summary=summary,
             start_time=start_time,
             end_time=end_time,
             description=description,
+            user_id=user_context.get("user_id", ""),
         )
 
         return create_response(200, {
@@ -161,13 +186,17 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
 
     Args:
         user_context: Authenticated user context
-        access_token: User's Auth0 access token
-        body: Request body with 'message' field
+        access_token: User's Auth0 access token (for API authorization)
+        body: Request body with 'message' field, optional 'myaccount_token' and 'refresh_token'
 
     Returns:
         Response with chat answer
     """
     message = body.get("message", "").strip()
+    # MyAccount token for calendar operations (has /me/ audience)
+    myaccount_token = body.get("myaccount_token", "")
+    # Refresh token for token exchange to get Google access token
+    refresh_token = body.get("refresh_token", "")
 
     if not message:
         return create_response(400, {"error": "Message is required"})
@@ -177,10 +206,27 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
         message_lower = message.lower()
 
         # Check for calendar-related intents
-        if any(keyword in message_lower for keyword in ["calendar", "schedule", "appointment", "event"]):
-            if any(keyword in message_lower for keyword in ["what", "list", "show", "upcoming"]):
+        calendar_keywords = ["calendar", "schedule", "appointment", "event", "meeting", "meetings"]
+        if any(keyword in message_lower for keyword in calendar_keywords):
+            # Check if we have a MyAccount token for calendar access
+            if not myaccount_token:
+                return create_response(200, {
+                    "answer": (
+                        "To access your calendar, I need permission to view your connected Google account. "
+                        "Please ensure you've connected your Google account and that the app has the "
+                        "MyAccount token available.\n\n"
+                        "If you're using the API directly, include `myaccount_token` in your request body."
+                    ),
+                    "intent": "calendar_auth_required",
+                })
+
+            if any(keyword in message_lower for keyword in ["what", "list", "show", "upcoming", "do i have", "any"]):
                 # List events
-                events_display = list_events_tool(access_token)
+                events_display = list_events_tool(
+                    myaccount_token,
+                    refresh_token,
+                    user_context.get("user_id", "")
+                )
                 return create_response(200, {
                     "answer": events_display,
                     "intent": "calendar_list",
@@ -190,17 +236,21 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
                 return create_response(200, {
                     "answer": (
                         "I can help you schedule an appointment! Please provide the following details:\n\n"
-                        "• **Event name**: What would you like to call this event?\n"
-                        "• **Start time**: When should it start? (e.g., 2024-03-15T14:00:00)\n"
-                        "• **End time**: When should it end?\n"
-                        "• **Description**: (optional) Any additional details?\n\n"
+                        "- **Event name**: What would you like to call this event?\n"
+                        "- **Start time**: When should it start? (e.g., 2024-03-15T14:00:00)\n"
+                        "- **End time**: When should it end?\n"
+                        "- **Description**: (optional) Any additional details?\n\n"
                         "Or use the /calendar/create endpoint with structured data."
                     ),
                     "intent": "calendar_create_prompt",
                 })
 
-        # Default to RAG query for gut health content
-        chain = create_rag_chain(user_id=user_context["user_id"])
+        # Default to RAG query for gut health content (with FGA ABAC filtering)
+        chain = create_rag_chain(
+            user_id=user_context["user_id"],
+            subscription_tier=user_context["subscription_tier"],
+            roles=user_context.get("roles", []),
+        )
         response = chain.invoke(message)
 
         return create_response(200, {
@@ -233,6 +283,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     # Extract path
     path = event.get("rawPath", "/")
+
+    # Health check - no auth required
+    if path == "/health":
+        return create_response(200, {
+            "status": "healthy",
+            "environment": os.environ.get("ENVIRONMENT", "unknown"),
+        })
 
     # Get Authorization header
     headers = event.get("headers", {})
@@ -268,19 +325,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif path == "/calendar" and http_method == "GET":
             require_scope(claims, "read:calendar")
-            return handle_calendar_list(user_context, token)
+            # Get myaccount_token and refresh_token from query params or body
+            query_params = event.get("queryStringParameters", {}) or {}
+            myaccount_token = query_params.get("myaccount_token", "") or body.get("myaccount_token", "")
+            refresh_token = query_params.get("refresh_token", "") or body.get("refresh_token", "")
+            return handle_calendar_list(user_context, myaccount_token, refresh_token)
 
         elif path == "/calendar/create" and http_method == "POST":
             require_scope(claims, "write:calendar")
-            return handle_calendar_create(user_context, token, body)
-
-        elif path == "/health" and http_method == "GET":
-            # Health check endpoint (no auth required beyond valid token)
-            return create_response(200, {
-                "status": "healthy",
-                "user_id": user_context["user_id"],
-                "subscription_tier": user_context["subscription_tier"],
-            })
+            return handle_calendar_create(user_context, body)
 
         else:
             return create_response(404, {"error": f"Not found: {http_method} {path}"})

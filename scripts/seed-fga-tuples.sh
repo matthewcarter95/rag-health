@@ -1,6 +1,19 @@
 #!/bin/bash
 #
-# Seed FGA Tuples for RAG Health Content Authorization
+# Seed FGA Tuples for RAG Health ABAC Model
+#
+# This script loads the tag-based tuples that define which subscription tiers
+# and roles can access which content tags. Content permissions are resolved
+# dynamically through:
+#
+#   1. These tag tuples (loaded once):
+#      subscription_tier:X#subscriber -> viewer -> content_tag:Y
+#      role:X#member -> viewer -> content_tag:Y
+#
+#   2. Contextual tuples (passed at check time from JWT):
+#      user:<id> is subscriber of subscription_tier:<tier>
+#      user:<id> is member of role:<role>
+#      content_tag:<tag> is tagged on content:<id>
 #
 # Prerequisites:
 #   - FGA CLI installed (https://openfga.dev/docs/getting-started/install-sdk)
@@ -29,38 +42,58 @@ if ! command -v fga &> /dev/null; then
     exit 1
 fi
 
-echo "Seeding FGA tuples to store: ${FGA_STORE_ID}"
+echo "=== RAG Health FGA ABAC Tuple Seeding ==="
+echo ""
+echo "Store ID: ${FGA_STORE_ID}"
 echo ""
 
-# Write content access tuples
-echo "Writing content access tuples..."
+# Write tag tuples (subscription_tier/role -> content_tag permissions)
+echo "Loading ABAC tag tuples..."
+echo "These define: subscription_tier/role -> viewer -> content_tag"
+echo ""
 fga tuple write \
     --store-id "${FGA_STORE_ID}" \
-    --file "${TUPLES_DIR}/content-tuples.json"
+    --file "${TUPLES_DIR}/tag-tuples.json"
 
 echo ""
-
-# Write user subscription/role tuples
-echo "Writing user subscription and role tuples..."
-fga tuple write \
-    --store-id "${FGA_STORE_ID}" \
-    --file "${TUPLES_DIR}/user-tuples.json"
-
-echo ""
-echo "✅ FGA tuples seeded successfully!"
+echo "Tag tuples loaded successfully!"
 echo ""
 
-# Verify tuples were written
-echo "Verifying tuples..."
+# Verify tag tuples
+echo "=== Verifying Tag Tuples ==="
 echo ""
-echo "Sample content tuples:"
-fga tuple read --store-id "${FGA_STORE_ID}" --object "content:microbiome-basics-001" 2>/dev/null || echo "(run 'fga tuple read' to verify)"
+echo "Checking content_tag:basic viewers:"
+fga tuple read --store-id "${FGA_STORE_ID}" --object "content_tag:basic" 2>/dev/null || echo "(error reading tuples)"
+echo ""
 
+echo "Checking content_tag:premium viewers:"
+fga tuple read --store-id "${FGA_STORE_ID}" --object "content_tag:premium" 2>/dev/null || echo "(error reading tuples)"
 echo ""
-echo "Sample user tuples:"
-fga tuple read --store-id "${FGA_STORE_ID}" --user "user:auth0|basic-user-001" 2>/dev/null || echo "(run 'fga tuple read' to verify)"
 
+echo "Checking content_tag:clinical viewers:"
+fga tuple read --store-id "${FGA_STORE_ID}" --object "content_tag:clinical" 2>/dev/null || echo "(error reading tuples)"
 echo ""
-echo "Test authorization:"
-echo "  fga check --store-id ${FGA_STORE_ID} 'user:auth0|basic-user-001' viewer content:microbiome-basics-001"
-echo "  fga check --store-id ${FGA_STORE_ID} 'user:auth0|basic-user-001' viewer content:clinical-microbiome-001"
+
+echo "=== ABAC Test Commands ==="
+echo ""
+echo "To test ABAC authorization with contextual tuples, use:"
+echo ""
+echo "# Basic user checking basic content:"
+echo "fga check --store-id ${FGA_STORE_ID} \\"
+echo "  'user:test-user' viewer content:test-content \\"
+echo "  --contextual-tuple 'user:test-user subscriber subscription_tier:basic' \\"
+echo "  --contextual-tuple 'content_tag:basic tagged content:test-content'"
+echo ""
+echo "# Premium user checking premium content:"
+echo "fga check --store-id ${FGA_STORE_ID} \\"
+echo "  'user:test-user' viewer content:test-content \\"
+echo "  --contextual-tuple 'user:test-user subscriber subscription_tier:premium' \\"
+echo "  --contextual-tuple 'content_tag:premium tagged content:test-content'"
+echo ""
+echo "# Healthcare provider checking clinical content:"
+echo "fga check --store-id ${FGA_STORE_ID} \\"
+echo "  'user:test-provider' viewer content:clinical-doc \\"
+echo "  --contextual-tuple 'user:test-provider member role:healthcare_provider' \\"
+echo "  --contextual-tuple 'content_tag:clinical tagged content:clinical-doc'"
+echo ""
+echo "=== Done ==="
