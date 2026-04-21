@@ -57,7 +57,7 @@ Parameters:
     Default: ""
   BedrockModelId:
     Type: String
-    Default: us.anthropic.claude-3-5-haiku-20241022-v1:0
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
 
 Globals:
   Function:

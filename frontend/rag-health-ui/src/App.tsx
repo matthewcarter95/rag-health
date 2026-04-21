@@ -498,18 +498,37 @@ function App() {
           <div ref={messagesEndRef} />
         </div>
 
-        <div className="input-container">
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="Ask about gut health or your calendar..."
-            disabled={loading}
-            rows={1}
-          />
-          <button onClick={() => sendMessage()} disabled={loading || !input.trim()}>
-            Send
-          </button>
+        <div className="input-area">
+          <div className="quick-prompts">
+            {SAMPLE_PROMPTS.map((item, idx) => (
+              <button
+                key={idx}
+                className="quick-prompt-btn"
+                style={{ borderColor: item.color, color: item.color }}
+                onClick={() => handleSamplePrompt(item.prompt)}
+                disabled={loading || (item.tier === 'calendar' && !myAccountToken)}
+                title={item.tier === 'calendar' && !myAccountToken ? 'Connect Google account to enable' : item.prompt}
+              >
+                <span className="prompt-tier-small" style={{ backgroundColor: item.color }}>
+                  {item.tier}
+                </span>
+                {item.label.split(': ')[1]}
+              </button>
+            ))}
+          </div>
+          <div className="input-container">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyPress={handleKeyPress}
+              placeholder="Ask about gut health or your calendar..."
+              disabled={loading}
+              rows={1}
+            />
+            <button onClick={() => sendMessage()} disabled={loading || !input.trim()}>
+              Send
+            </button>
+          </div>
         </div>
       </main>
     </div>

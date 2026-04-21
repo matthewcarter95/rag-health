@@ -442,6 +442,54 @@ body {
   40% { transform: scale(1); }
 }
 
+/* Input Area */
+.input-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Quick Prompts - always visible */
+.quick-prompts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0 0.25rem;
+}
+
+.quick-prompt-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid;
+  border-radius: 20px;
+  padding: 0.4rem 0.75rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.quick-prompt-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.quick-prompt-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.prompt-tier-small {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #fff;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+}
+
 /* Input */
 .input-container {
   display: flex;
