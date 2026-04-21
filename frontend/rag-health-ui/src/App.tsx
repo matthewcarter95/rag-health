@@ -48,7 +48,7 @@ const SAMPLE_PROMPTS = [
 ];
 
 function App() {
-  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
+  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently, getAccessTokenWithPopup } = useAuth0();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -69,69 +69,100 @@ function App() {
     if (!isAuthenticated || isLoading) return;
 
     const getMyAccountToken = async () => {
+      let token: string | null = null;
+
+      // Try silent token first, fall back to popup if needed
       try {
-        const token = await getAccessTokenSilently({
+        token = await getAccessTokenSilently({
           authorizationParams: {
             audience: `https://${AUTH0_DOMAIN}/me/`,
             scope: 'openid profile email read:me:connected_accounts'
           }
         });
+        console.log('MyAccount token obtained silently');
+      } catch (silentError) {
+        console.log('Silent token failed, will try popup on user action:', silentError);
+        // Don't block - user can still use the app, calendar will prompt if needed
+      }
+
+      if (token) {
         setMyAccountToken(token);
-        console.log('MyAccount token obtained');
 
         // Check if Google is connected via Connected Accounts API
-        const response = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts`, {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
+        try {
+          const response = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts`, {
+            headers: { 'Authorization': `Bearer ${token}` }
+          });
 
-        console.log('Connected accounts response status:', response.status);
+          console.log('Connected accounts response status:', response.status);
 
-        if (response.ok) {
-          const data = await response.json();
-          const accounts = Array.isArray(data) ? data : (data.accounts || []);
-          console.log('Connected accounts:', accounts);
+          if (response.ok) {
+            const data = await response.json();
+            const accounts = Array.isArray(data) ? data : (data.accounts || []);
+            console.log('Connected accounts:', accounts);
 
-          const googleAccount = accounts.find((acc: any) =>
-            acc.connection?.toLowerCase().includes('google') ||
-            acc.provider?.toLowerCase().includes('google')
-          );
+            const googleAccount = accounts.find((acc: any) =>
+              acc.connection?.toLowerCase().includes('google') ||
+              acc.provider?.toLowerCase().includes('google')
+            );
 
-          if (googleAccount) {
-            console.log('Google account found:', googleAccount);
-            setGoogleConnected(true);
+            if (googleAccount) {
+              console.log('Google account found:', googleAccount);
+              setGoogleConnected(true);
 
-            // Test the token endpoint
-            if (googleAccount.id) {
-              console.log('Testing token endpoint for account:', googleAccount.id);
-              const tokenResp = await fetch(
-                `https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts/${googleAccount.id}/token`,
-                { headers: { 'Authorization': `Bearer ${token}` } }
-              );
-              console.log('Token endpoint status:', tokenResp.status);
-              const tokenData = await tokenResp.json();
-              console.log('Token endpoint response:', tokenData);
+              // Test the token endpoint
+              if (googleAccount.id) {
+                console.log('Testing token endpoint for account:', googleAccount.id);
+                const tokenResp = await fetch(
+                  `https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts/${googleAccount.id}/token`,
+                  { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+                console.log('Token endpoint status:', tokenResp.status);
+                const tokenData = await tokenResp.json();
+                console.log('Token endpoint response:', tokenData);
+              }
+            } else {
+              console.log('No Google account in connected accounts, but user logged in with Google');
+              setGoogleConnected(true);
             }
           } else {
-            console.log('No Google account found in connected accounts');
-            // User logged in with Google, so calendar should still work via the backend
-            // The backend can try to get the token from the user's identity
-            setGoogleConnected(true); // Assume connected since they logged in with Google
+            console.log('Connected accounts API not available');
+            setGoogleConnected(true);
           }
-        } else {
-          const errorText = await response.text();
-          console.log('Connected accounts API error:', errorText);
-          // Still set connected true since user logged in with Google
+        } catch (apiError) {
+          console.error('Connected accounts API error:', apiError);
           setGoogleConnected(true);
         }
-      } catch (error) {
-        console.error('Failed to get MyAccount token:', error);
-        // Still allow calendar attempts since user logged in with Google
+      } else {
+        // No MyAccount token, but user logged in with Google so assume calendar is available
+        console.log('No MyAccount token, but user authenticated with Google');
         setGoogleConnected(true);
       }
     };
 
     getMyAccountToken();
   }, [isAuthenticated, isLoading, getAccessTokenSilently]);
+
+  // Function to get MyAccount token via popup (for calendar operations)
+  const ensureMyAccountToken = async (): Promise<string | null> => {
+    if (myAccountToken) return myAccountToken;
+
+    try {
+      const token = await getAccessTokenWithPopup({
+        authorizationParams: {
+          audience: `https://${AUTH0_DOMAIN}/me/`,
+          scope: 'openid profile email read:me:connected_accounts'
+        }
+      });
+      if (token) {
+        setMyAccountToken(token);
+        return token;
+      }
+    } catch (error) {
+      console.error('Failed to get MyAccount token via popup:', error);
+    }
+    return null;
+  };
 
   const sendMessage = async (messageOverride?: string) => {
     const userMessage = messageOverride || input.trim();
@@ -156,9 +187,18 @@ function App() {
         message: userMessage
       };
 
-      // Include MyAccount token for Connected Accounts calendar access
-      if (myAccountToken) {
-        requestBody.myaccount_token = myAccountToken;
+      // For calendar requests, ensure we have the MyAccount token
+      const isCalendarRequest = ['calendar', 'schedule', 'appointment', 'event', 'meeting'].some(
+        keyword => userMessage.toLowerCase().includes(keyword)
+      );
+
+      let tokenToSend = myAccountToken;
+      if (isCalendarRequest && !tokenToSend) {
+        tokenToSend = await ensureMyAccountToken();
+      }
+
+      if (tokenToSend) {
+        requestBody.myaccount_token = tokenToSend;
       }
 
       const response = await fetch(`${API_URL}/chat`, {
