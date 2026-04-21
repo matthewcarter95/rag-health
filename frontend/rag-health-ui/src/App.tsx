@@ -4,6 +4,7 @@ import './App.css';
 
 const API_URL = 'https://5e3ecqd7qkwygbyik3fmh5qq4u0qlhul.lambda-url.us-east-1.on.aws';
 const AUTH0_DOMAIN = 'violet-hookworm-18506.cic-demo-platform.auth0app.com';
+const AUTH0_CLIENT_ID = 'iEl6LY0JlFQMvjAEAVy8ZqAT3g7ogPjW';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -53,6 +54,7 @@ function App() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [myAccountToken, setMyAccountToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [googleConnected, setGoogleConnected] = useState(false);
   const [calendarConnecting, setCalendarConnecting] = useState(false);
   const [pendingConnection, setPendingConnection] = useState(false);

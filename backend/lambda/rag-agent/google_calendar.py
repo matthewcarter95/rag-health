@@ -267,6 +267,87 @@ def get_google_token_via_token_exchange(user_refresh_token: str) -> Optional[str
         raise CalendarError(f"Failed to exchange token: {str(e)}")
 
 
+def get_google_token_via_connected_accounts(user_access_token: str) -> Optional[str]:
+    """
+    Get Google access token via Auth0 Connected Accounts API.
+
+    Uses the MyAccount Connected Accounts token endpoint to retrieve
+    the stored Google access token.
+
+    Args:
+        user_access_token: User's Auth0 access token (MyAccount audience)
+
+    Returns:
+        Google OAuth access token or None if not available
+
+    Raises:
+        CalendarError: If API call fails
+    """
+    try:
+        # First get the connected account ID for Google
+        accounts_url = f"{MYACCOUNT_BASE_URL}/connected-accounts/accounts"
+        print(f"[Calendar] Fetching connected accounts to find Google account ID")
+
+        response = requests.get(
+            accounts_url,
+            headers={
+                "Authorization": f"Bearer {user_access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+
+        if response.status_code != 200:
+            print(f"[Calendar] Failed to list connected accounts: {response.status_code}")
+            return None
+
+        data = response.json()
+        accounts = data.get("accounts", data) if isinstance(data, dict) else data
+
+        google_account_id = None
+        for acc in accounts:
+            conn = acc.get("connection", "").lower()
+            if "google" in conn:
+                google_account_id = acc.get("id")
+                print(f"[Calendar] Found Google account ID: {google_account_id}")
+                break
+
+        if not google_account_id:
+            print("[Calendar] No Google connected account found")
+            return None
+
+        # Now get the token for this connected account
+        token_url = f"{MYACCOUNT_BASE_URL}/connected-accounts/accounts/{google_account_id}/token"
+        print(f"[Calendar] Fetching Google token from: {token_url}")
+
+        token_response = requests.get(
+            token_url,
+            headers={
+                "Authorization": f"Bearer {user_access_token}",
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+
+        print(f"[Calendar] Token endpoint response status: {token_response.status_code}")
+
+        if token_response.status_code == 200:
+            token_data = token_response.json()
+            access_token = token_data.get("access_token")
+            if access_token:
+                print("[Calendar] Successfully retrieved Google access token via Connected Accounts")
+                return access_token
+            print(f"[Calendar] Token response missing access_token: {token_data}")
+            return None
+
+        print(f"[Calendar] Token endpoint error: {token_response.text}")
+        return None
+
+    except Exception as e:
+        print(f"[Calendar] Error retrieving token via Connected Accounts: {e}")
+        return None
+
+
 def get_google_token_from_myaccount(
     user_access_token: str,
     user_refresh_token: str = "",
@@ -276,8 +357,9 @@ def get_google_token_from_myaccount(
     Get Google OAuth token for calendar access.
 
     Tries multiple methods in order:
-    1. Management API (if M2M credentials configured and user_id provided)
-    2. Token exchange (if refresh token provided)
+    1. Connected Accounts API (using MyAccount token)
+    2. Management API (if M2M credentials configured and user_id provided)
+    3. Token exchange (if refresh token provided)
 
     Args:
         user_access_token: User's Auth0 access token (MyAccount audience)
@@ -294,7 +376,17 @@ def get_google_token_from_myaccount(
     if not check_google_connected(user_access_token):
         return None
 
-    # Method 1: Try Management API if we have user_id and M2M credentials
+    # Method 1: Try Connected Accounts API (preferred for CIC tenants)
+    try:
+        print("[Calendar] Attempting to get Google token via Connected Accounts API")
+        token = get_google_token_via_connected_accounts(user_access_token)
+        if token:
+            return token
+        print("[Calendar] Connected Accounts API didn't return a token, trying other methods")
+    except Exception as e:
+        print(f"[Calendar] Connected Accounts API failed: {e}, trying other methods")
+
+    # Method 2: Try Management API if we have user_id and M2M credentials
     if user_id and AUTH0_M2M_CLIENT_ID and AUTH0_M2M_CLIENT_SECRET:
         try:
             print("[Calendar] Attempting to get Google token via Management API")
@@ -305,7 +397,7 @@ def get_google_token_from_myaccount(
         except CalendarError as e:
             print(f"[Calendar] Management API failed: {e.message}, trying other methods")
 
-    # Method 2: Try token exchange if we have a refresh token
+    # Method 3: Try token exchange if we have a refresh token
     if user_refresh_token and AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET:
         try:
             print("[Calendar] Attempting to get Google token via token exchange")
@@ -320,7 +412,7 @@ def get_google_token_from_myaccount(
     print("[Calendar] No method available to retrieve Google token")
     raise CalendarError(
         "Cannot retrieve Google Calendar access token. "
-        "Server needs M2M credentials or user refresh token.",
+        "Please ensure your Google account is connected and try again.",
         500
     )
 
