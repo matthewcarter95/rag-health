@@ -172,7 +172,9 @@ function App() {
 
       if (completeResponse.ok) {
         console.log('Google connection completed');
-        setMyAccountToken(token);
+        if (token) {
+          setMyAccountToken(token);
+        }
         setGoogleConnected(true);
       } else {
         const errorData = await completeResponse.json();
