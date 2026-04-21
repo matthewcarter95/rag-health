@@ -3,6 +3,9 @@ Lambda Function URL Handler
 
 Main entry point for the RAG Health agent API.
 Handles Auth0 JWT validation, RAG queries, and Google Calendar operations.
+
+Calendar integration uses Auth0 Token Vault (federated connection token exchange)
+to access Google Calendar on behalf of the user.
 """
 
 import json
@@ -89,31 +92,27 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
 
 def handle_calendar_list(
     user_context: Dict[str, Any],
-    myaccount_token: str,
-    refresh_token: str = ""
+    refresh_token: str
 ) -> Dict[str, Any]:
     """
     Handle calendar event listing requests.
 
+    Uses Auth0 Token Vault to exchange refresh token for Google access token.
+
     Args:
         user_context: Authenticated user context
-        myaccount_token: User's Auth0 MyAccount token (for checking connected accounts)
-        refresh_token: User's Auth0 refresh token (for token exchange)
+        refresh_token: User's Auth0 refresh token (for Token Vault exchange)
 
     Returns:
         Response with calendar events
     """
-    if not myaccount_token:
+    if not refresh_token:
         return create_response(400, {
-            "error": "MyAccount token required. Include 'myaccount_token' in request body or query."
+            "error": "Refresh token required. Include 'refresh_token' in request body."
         })
 
     try:
-        events_display = list_events_tool(
-            myaccount_token,
-            refresh_token,
-            user_context.get("user_id", "")
-        )
+        events_display = list_events_tool(refresh_token)
 
         return create_response(200, {
             "events": events_display,
@@ -131,23 +130,24 @@ def handle_calendar_create(
     """
     Handle calendar event creation requests.
 
+    Uses Auth0 Token Vault to exchange refresh token for Google access token.
+
     Args:
         user_context: Authenticated user context
-        body: Request body with event details, myaccount_token, and refresh_token
+        body: Request body with event details and refresh_token
 
     Returns:
         Response with created event confirmation
     """
-    myaccount_token = body.get("myaccount_token", "")
     refresh_token = body.get("refresh_token", "")
     summary = body.get("summary", "").strip()
     start_time = body.get("start_time", "").strip()
     end_time = body.get("end_time", "").strip()
     description = body.get("description")
 
-    if not myaccount_token:
+    if not refresh_token:
         return create_response(400, {
-            "error": "myaccount_token is required for calendar operations"
+            "error": "refresh_token is required for calendar operations"
         })
 
     if not summary or not start_time or not end_time:
@@ -157,13 +157,11 @@ def handle_calendar_create(
 
     try:
         result = create_event_tool(
-            user_access_token=myaccount_token,
-            user_refresh_token=refresh_token,
+            refresh_token=refresh_token,
             summary=summary,
             start_time=start_time,
             end_time=end_time,
             description=description,
-            user_id=user_context.get("user_id", ""),
         )
 
         return create_response(200, {
@@ -184,18 +182,19 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
     - List calendar events
     - Create calendar events
 
+    Calendar access uses Auth0 Token Vault (federated connection token exchange)
+    to exchange the user's refresh token for a Google access token.
+
     Args:
         user_context: Authenticated user context
         access_token: User's Auth0 access token (for API authorization)
-        body: Request body with 'message' field, optional 'myaccount_token' and 'refresh_token'
+        body: Request body with 'message' field, optional 'refresh_token'
 
     Returns:
         Response with chat answer
     """
     message = body.get("message", "").strip()
-    # MyAccount token for calendar operations (has /me/ audience)
-    myaccount_token = body.get("myaccount_token", "")
-    # Refresh token for token exchange to get Google access token
+    # Refresh token for Token Vault exchange to get Google access token
     refresh_token = body.get("refresh_token", "")
 
     if not message:
@@ -208,25 +207,21 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
         # Check for calendar-related intents
         calendar_keywords = ["calendar", "schedule", "appointment", "event", "meeting", "meetings"]
         if any(keyword in message_lower for keyword in calendar_keywords):
-            # Check if we have a MyAccount token for calendar access
-            if not myaccount_token:
+            # Check if we have a refresh token for calendar access via Token Vault
+            if not refresh_token:
                 return create_response(200, {
                     "answer": (
-                        "To access your calendar, I need permission to view your connected Google account. "
-                        "Please ensure you've connected your Google account and that the app has the "
-                        "MyAccount token available.\n\n"
-                        "If you're using the API directly, include `myaccount_token` in your request body."
+                        "To access your calendar, I need your refresh token to exchange for "
+                        "Google Calendar access via Auth0 Token Vault.\n\n"
+                        "Please ensure you're logged in with Google and include `refresh_token` "
+                        "in your request body."
                     ),
                     "intent": "calendar_auth_required",
                 })
 
             if any(keyword in message_lower for keyword in ["what", "list", "show", "upcoming", "do i have", "any"]):
-                # List events
-                events_display = list_events_tool(
-                    myaccount_token,
-                    refresh_token,
-                    user_context.get("user_id", "")
-                )
+                # List events using Token Vault
+                events_display = list_events_tool(refresh_token)
                 return create_response(200, {
                     "answer": events_display,
                     "intent": "calendar_list",
@@ -325,11 +320,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         elif path == "/calendar" and http_method == "GET":
             require_scope(claims, "read:calendar")
-            # Get myaccount_token and refresh_token from query params or body
+            # Get refresh_token from query params or body (for Token Vault exchange)
             query_params = event.get("queryStringParameters", {}) or {}
-            myaccount_token = query_params.get("myaccount_token", "") or body.get("myaccount_token", "")
             refresh_token = query_params.get("refresh_token", "") or body.get("refresh_token", "")
-            return handle_calendar_list(user_context, myaccount_token, refresh_token)
+            return handle_calendar_list(user_context, refresh_token)
 
         elif path == "/calendar/create" and http_method == "POST":
             require_scope(claims, "write:calendar")

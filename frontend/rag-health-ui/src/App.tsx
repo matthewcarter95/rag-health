@@ -3,8 +3,6 @@ import { useAuth0 } from '@auth0/auth0-react';
 import './App.css';
 
 const API_URL = 'https://5e3ecqd7qkwygbyik3fmh5qq4u0qlhul.lambda-url.us-east-1.on.aws';
-const AUTH0_DOMAIN = 'violet-hookworm-18506.cic-demo-platform.auth0app.com';
-const AUTH0_CLIENT_ID = 'iEl6LY0JlFQMvjAEAVy8ZqAT3g7ogPjW';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -48,16 +46,35 @@ const SAMPLE_PROMPTS = [
   },
 ];
 
+// Helper to extract refresh token from Auth0 SDK's localStorage cache
+const getRefreshTokenFromCache = (): string | null => {
+  try {
+    // Auth0 SPA SDK stores tokens with a specific key pattern in localStorage
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('@@auth0spajs@@')) {
+        const data = localStorage.getItem(key);
+        if (data) {
+          const parsed = JSON.parse(data);
+          // The cache entry has a body with refresh_token
+          if (parsed?.body?.refresh_token) {
+            return parsed.body.refresh_token;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error reading refresh token from cache:', e);
+  }
+  return null;
+};
+
 function App() {
-  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently, getAccessTokenWithPopup } = useAuth0();
+  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [myAccountToken, setMyAccountToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
-  const [googleConnected, setGoogleConnected] = useState(false);
-  const [calendarConnecting, setCalendarConnecting] = useState(false);
-  const [pendingConnection, setPendingConnection] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -68,199 +85,18 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Store connect_code from URL immediately (before auth check)
+  // Extract and store refresh token when authenticated
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const connectCode = urlParams.get('connect_code');
-    if (connectCode) {
-      console.log('Found connect_code in URL, storing for later processing');
-      sessionStorage.setItem('pending_connect_code', connectCode);
-      // Clear URL immediately to avoid reprocessing
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
-  // Check for pending connection after auth completes
-  useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
-
-    const connectCode = sessionStorage.getItem('pending_connect_code');
-    const authSession = sessionStorage.getItem('auth0_connect_session');
-
-    if (connectCode && authSession) {
-      console.log('Found pending connection, showing completion button');
-      setPendingConnection(true);
-    }
-  }, [isLoading, isAuthenticated]);
-
-  // Complete the Google connection (called by button click)
-  const completeGoogleConnection = async () => {
-    const connectCode = sessionStorage.getItem('pending_connect_code');
-    const authSession = sessionStorage.getItem('auth0_connect_session');
-
-    if (!connectCode || !authSession) {
-      console.error('Missing connect_code or auth_session');
-      return;
-    }
-
-    setCalendarConnecting(true);
-    console.log('Completing Google connection...');
-
-    try {
-      // Get MyAccount token via popup (user initiated, so popup should work)
-      const token = await getAccessTokenWithPopup({
-        authorizationParams: {
-          audience: `https://${AUTH0_DOMAIN}/me/`,
-          scope: 'openid profile email read:me:connected_accounts create:me:connected_accounts'
-        }
-      });
-
-      if (!token) {
-        console.error('Failed to get token for completing connection');
-        return;
-      }
-
-      // Complete the connection
-      const completeResponse = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/complete`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          auth_session: authSession,
-          connect_code: connectCode,
-          redirect_uri: window.location.origin,
-        }),
-      });
-
-      // Clear stored values regardless of outcome
-      sessionStorage.removeItem('pending_connect_code');
-      sessionStorage.removeItem('auth0_connect_session');
-      setPendingConnection(false);
-
-      if (completeResponse.ok) {
-        const result = await completeResponse.json();
-        console.log('Connection completed successfully:', result);
-        setMyAccountToken(token);
-        setGoogleConnected(true);
+    if (isAuthenticated && !isLoading) {
+      const token = getRefreshTokenFromCache();
+      if (token) {
+        console.log('Refresh token found in cache');
+        setRefreshToken(token);
       } else {
-        const errorData = await completeResponse.json();
-        console.error('Failed to complete connection:', errorData);
-        alert(`Failed to complete Google connection: ${errorData.detail || 'Unknown error'}`);
+        console.log('No refresh token found in cache - user may need to re-login');
       }
-    } catch (error: any) {
-      console.error('Error completing connection:', error);
-      if (error?.message?.includes('popup')) {
-        alert('Please allow popups for this site to complete the Google connection.');
-      }
-    } finally {
-      setCalendarConnecting(false);
     }
-  };
-
-  // Check if Google is connected when we have a MyAccount token
-  useEffect(() => {
-    const checkGoogleConnection = async () => {
-      if (!myAccountToken) return;
-
-      try {
-        const response = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts`, {
-          headers: {
-            'Authorization': `Bearer ${myAccountToken}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const accounts = data.accounts || data.connected_accounts || data || [];
-          const hasGoogle = accounts.some((acc: any) =>
-            acc.connection?.toLowerCase().includes('google') ||
-            acc.provider?.toLowerCase().includes('google')
-          );
-          setGoogleConnected(hasGoogle);
-          console.log('Google connected status:', hasGoogle, 'Accounts:', accounts);
-        }
-      } catch (error) {
-        console.error('Failed to check Google connection:', error);
-      }
-    };
-
-    checkGoogleConnection();
-  }, [myAccountToken]);
-
-  // Connect calendar via popup for MyAccount audience, then initiate Google connection
-  const connectCalendar = async () => {
-    setCalendarConnecting(true);
-    try {
-      // Use popup to get token for MyAccount API without redirecting
-      // Need both read and create scopes for Connected Accounts API
-      const token = await getAccessTokenWithPopup({
-        authorizationParams: {
-          audience: `https://${AUTH0_DOMAIN}/me/`,
-          scope: 'openid profile email read:me:connected_accounts create:me:connected_accounts'
-        }
-      });
-
-      if (!token) {
-        console.error('No token received from popup');
-        return;
-      }
-
-      setMyAccountToken(token);
-      console.log('MyAccount token obtained, initiating Google connection...');
-
-      // Now initiate the Google connection request
-      const connectResponse = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/connect`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          connection: 'google-oauth2',
-          redirect_uri: window.location.origin,
-          scopes: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar'],
-        }),
-      });
-
-      if (!connectResponse.ok) {
-        const errorData = await connectResponse.json();
-        console.error('Connect request failed:', errorData);
-        // If already connected or feature not enabled, show appropriate message
-        if (connectResponse.status === 404) {
-          alert('Connected Accounts feature is not enabled. Please activate MyAccount API in Auth0 Dashboard under Authentication > APIs.');
-        } else {
-          alert(`Failed to initiate Google connection: ${errorData.detail || errorData.message || 'Unknown error'}`);
-        }
-        return;
-      }
-
-      const connectData = await connectResponse.json();
-      console.log('Connect response:', connectData);
-
-      // Store auth_session for completing the connection after redirect
-      if (connectData.auth_session) {
-        sessionStorage.setItem('auth0_connect_session', connectData.auth_session);
-      }
-
-      // Redirect to Google OAuth
-      if (connectData.connect_uri) {
-        const connectUrl = new URL(connectData.connect_uri);
-        if (connectData.connect_params?.ticket) {
-          connectUrl.searchParams.set('ticket', connectData.connect_params.ticket);
-        }
-        window.location.href = connectUrl.toString();
-      }
-    } catch (error: any) {
-      console.error('Failed to connect calendar:', error?.message || error);
-      if (error?.error === 'popup_closed_by_user') {
-        console.log('User closed the popup');
-      }
-    } finally {
-      setCalendarConnecting(false);
-    }
-  };
+  }, [isAuthenticated, isLoading]);
 
   const sendMessage = async (messageOverride?: string) => {
     const userMessage = messageOverride || input.trim();
@@ -282,14 +118,14 @@ function App() {
         }
       });
 
-      // Build request body - include MyAccount token for calendar operations
+      // Build request body - include refresh token for Token Vault calendar access
       const requestBody: Record<string, string> = {
         message: userMessage
       };
 
-      // Include MyAccount token if available (needed for calendar features)
-      if (myAccountToken) {
-        requestBody.myaccount_token = myAccountToken;
+      // Include refresh token for Token Vault (Google Calendar access via token exchange)
+      if (refreshToken) {
+        requestBody.refresh_token = refreshToken;
       }
 
       const response = await fetch(`${API_URL}/chat`, {
@@ -395,29 +231,14 @@ function App() {
             {user?.picture && <img src={user.picture} alt="avatar" className="avatar" />}
             {user?.name || user?.email}
           </span>
-          {myAccountToken && googleConnected ? (
-            <span className="calendar-status connected" title="Google Calendar connected">
-              Google Calendar Connected
+          {refreshToken ? (
+            <span className="calendar-status connected" title="Calendar access available via Token Vault">
+              Calendar Ready
             </span>
-          ) : pendingConnection ? (
-            <button
-              className="connect-calendar-btn"
-              onClick={completeGoogleConnection}
-              disabled={calendarConnecting}
-              title="Complete your Google Calendar connection"
-              style={{ backgroundColor: '#4ade8033', borderColor: '#4ade80' }}
-            >
-              {calendarConnecting ? 'Completing...' : 'Complete Google Connection'}
-            </button>
           ) : (
-            <button
-              className="connect-calendar-btn"
-              onClick={connectCalendar}
-              disabled={calendarConnecting}
-              title="Connect your Google Calendar to enable scheduling features"
-            >
-              {calendarConnecting ? 'Connecting...' : 'Connect Calendar'}
-            </button>
+            <span className="calendar-status" title="Login with Google to enable calendar features">
+              No Calendar Access
+            </span>
           )}
           <button className="logout-button" onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
             Logout
@@ -438,8 +259,8 @@ function App() {
                     className="sample-prompt-btn"
                     style={{ borderColor: item.color, color: item.color }}
                     onClick={() => handleSamplePrompt(item.prompt)}
-                    disabled={loading || (item.tier === 'calendar' && !myAccountToken)}
-                    title={item.tier === 'calendar' && !myAccountToken ? 'Connect Google account to enable' : ''}
+                    disabled={loading || (item.tier === 'calendar' && !refreshToken)}
+                    title={item.tier === 'calendar' && !refreshToken ? 'Login with Google to enable calendar' : ''}
                   >
                     <span className="prompt-tier" style={{ backgroundColor: item.color }}>
                       {item.tier}
@@ -453,16 +274,9 @@ function App() {
                 Basic users see basic content, Premium users see basic + premium,
                 and Researchers see all content including clinical studies.
               </p>
-              {!myAccountToken && (
+              {!refreshToken && (
                 <div className="calendar-connect-prompt">
-                  <p>Want to schedule appointments with specialists?</p>
-                  <button
-                    className="connect-calendar-btn large"
-                    onClick={connectCalendar}
-                    disabled={calendarConnecting}
-                  >
-                    {calendarConnecting ? 'Connecting...' : 'Connect Google Calendar'}
-                  </button>
+                  <p>Login with Google to enable calendar features via Token Vault.</p>
                 </div>
               )}
             </div>
@@ -476,7 +290,7 @@ function App() {
                   <span className="intent-badge calendar">{msg.intent.replace('_', ' ')}</span>
                 )}
               </div>
-              {msg.role === 'assistant' && msg.topic && myAccountToken && !loading && (
+              {msg.role === 'assistant' && msg.topic && refreshToken && !loading && (
                 <button
                   className="book-consultation-btn"
                   onClick={() => handleBookConsultation(msg.topic!)}
@@ -508,8 +322,8 @@ function App() {
                 className="quick-prompt-btn"
                 style={{ borderColor: item.color, color: item.color }}
                 onClick={() => handleSamplePrompt(item.prompt)}
-                disabled={loading || (item.tier === 'calendar' && !myAccountToken)}
-                title={item.tier === 'calendar' && !myAccountToken ? 'Connect Google account to enable' : item.prompt}
+                disabled={loading || (item.tier === 'calendar' && !refreshToken)}
+                title={item.tier === 'calendar' && !refreshToken ? 'Login with Google to enable calendar' : item.prompt}
               >
                 <span className="prompt-tier-small" style={{ backgroundColor: item.color }}>
                   {item.tier}
