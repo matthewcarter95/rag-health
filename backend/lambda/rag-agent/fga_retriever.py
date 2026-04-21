@@ -112,6 +112,38 @@ class FGAFilteredRetriever(BaseRetriever):
     class Config:
         arbitrary_types_allowed = True
 
+    def _check_permission_local(self, content_tier_tag: str) -> bool:
+        """
+        Local tier-based authorization check (fallback when FGA is not configured).
+
+        Tier hierarchy: basic < premium < clinical/research
+        - basic tier users can access: basic
+        - premium tier users can access: basic, premium
+        - researcher/clinical_reviewer roles can access: all tiers
+
+        Args:
+            content_tier_tag: The tier tag for this content (basic, premium, clinical, research)
+
+        Returns:
+            True if user's tier/role grants access to the content
+        """
+        # Researchers and clinical reviewers can access everything
+        if any(role in self.roles for role in ["researcher", "clinical_reviewer", "healthcare_provider"]):
+            return True
+
+        # Define tier hierarchy
+        tier_levels = {
+            "basic": 1,
+            "premium": 2,
+            "clinical": 3,
+            "research": 3,
+        }
+
+        user_level = tier_levels.get(self.subscription_tier, 1)
+        content_level = tier_levels.get(content_tier_tag, 1)
+
+        return user_level >= content_level
+
     def _check_permission_with_context(
         self,
         user_id: str,
@@ -133,6 +165,12 @@ class FGAFilteredRetriever(BaseRetriever):
         Returns:
             True if user has the required relation to the object
         """
+        # Fall back to local tier check if FGA is not configured
+        if not FGA_API_URL or not FGA_STORE_ID or not FGA_CLIENT_ID:
+            allowed = self._check_permission_local(content_tier_tag)
+            print(f"Local tier check: user tier={self.subscription_tier}, roles={self.roles}, content_tag={content_tier_tag} -> {allowed}")
+            return allowed
+
         try:
             token = _get_fga_access_token()
             url = f"{FGA_API_URL}/stores/{FGA_STORE_ID}/check"
