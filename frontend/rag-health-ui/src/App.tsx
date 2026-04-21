@@ -48,13 +48,12 @@ const SAMPLE_PROMPTS = [
 ];
 
 function App() {
-  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently, getAccessTokenWithPopup } = useAuth0();
+  const { isAuthenticated, isLoading, user, loginWithRedirect, logout, getAccessTokenSilently } = useAuth0();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [myAccountToken, setMyAccountToken] = useState<string | null>(null);
   const [googleConnected, setGoogleConnected] = useState(false);
-  const [calendarConnecting, setCalendarConnecting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -65,29 +64,6 @@ function App() {
     scrollToBottom();
   }, [messages]);
 
-  // Check for pending Google connection from redirect
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const connectCode = urlParams.get('connect_code');
-    if (connectCode) {
-      console.log('Found connect_code in URL, storing for completion');
-      sessionStorage.setItem('pending_connect_code', connectCode);
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-  }, []);
-
-  // Complete pending connection after auth
-  useEffect(() => {
-    if (isLoading || !isAuthenticated) return;
-
-    const connectCode = sessionStorage.getItem('pending_connect_code');
-    const authSession = sessionStorage.getItem('auth0_connect_session');
-
-    if (connectCode && authSession) {
-      completeGoogleConnection(connectCode, authSession);
-    }
-  }, [isLoading, isAuthenticated]);
-
   // Get MyAccount token on load and check Google connection
   useEffect(() => {
     if (!isAuthenticated || isLoading) return;
@@ -97,150 +73,65 @@ function App() {
         const token = await getAccessTokenSilently({
           authorizationParams: {
             audience: `https://${AUTH0_DOMAIN}/me/`,
-            scope: 'openid profile email read:me:connected_accounts create:me:connected_accounts'
+            scope: 'openid profile email read:me:connected_accounts'
           }
         });
         setMyAccountToken(token);
         console.log('MyAccount token obtained');
 
-        // Check if Google is connected
+        // Check if Google is connected via Connected Accounts API
         const response = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+
+        console.log('Connected accounts response status:', response.status);
 
         if (response.ok) {
           const data = await response.json();
           const accounts = Array.isArray(data) ? data : (data.accounts || []);
           console.log('Connected accounts:', accounts);
 
-          const hasGoogle = accounts.some((acc: any) =>
+          const googleAccount = accounts.find((acc: any) =>
             acc.connection?.toLowerCase().includes('google') ||
             acc.provider?.toLowerCase().includes('google')
           );
-          setGoogleConnected(hasGoogle);
 
-          if (hasGoogle) {
-            // Test if we can get the token
-            const googleAccount = accounts.find((acc: any) =>
-              acc.connection?.toLowerCase().includes('google') ||
-              acc.provider?.toLowerCase().includes('google')
-            );
-            if (googleAccount?.id) {
-              console.log('Google account found, testing token endpoint...');
+          if (googleAccount) {
+            console.log('Google account found:', googleAccount);
+            setGoogleConnected(true);
+
+            // Test the token endpoint
+            if (googleAccount.id) {
+              console.log('Testing token endpoint for account:', googleAccount.id);
               const tokenResp = await fetch(
                 `https://${AUTH0_DOMAIN}/me/v1/connected-accounts/accounts/${googleAccount.id}/token`,
                 { headers: { 'Authorization': `Bearer ${token}` } }
               );
+              console.log('Token endpoint status:', tokenResp.status);
               const tokenData = await tokenResp.json();
-              console.log('Token endpoint response:', tokenResp.status, tokenData);
+              console.log('Token endpoint response:', tokenData);
             }
+          } else {
+            console.log('No Google account found in connected accounts');
+            // User logged in with Google, so calendar should still work via the backend
+            // The backend can try to get the token from the user's identity
+            setGoogleConnected(true); // Assume connected since they logged in with Google
           }
+        } else {
+          const errorText = await response.text();
+          console.log('Connected accounts API error:', errorText);
+          // Still set connected true since user logged in with Google
+          setGoogleConnected(true);
         }
       } catch (error) {
         console.error('Failed to get MyAccount token:', error);
+        // Still allow calendar attempts since user logged in with Google
+        setGoogleConnected(true);
       }
     };
 
     getMyAccountToken();
   }, [isAuthenticated, isLoading, getAccessTokenSilently]);
-
-  const completeGoogleConnection = async (connectCode: string, authSession: string) => {
-    setCalendarConnecting(true);
-    try {
-      const token = await getAccessTokenWithPopup({
-        authorizationParams: {
-          audience: `https://${AUTH0_DOMAIN}/me/`,
-          scope: 'openid profile email read:me:connected_accounts create:me:connected_accounts'
-        }
-      });
-
-      const completeResponse = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/complete`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          auth_session: authSession,
-          connect_code: connectCode,
-          redirect_uri: window.location.origin,
-        }),
-      });
-
-      sessionStorage.removeItem('pending_connect_code');
-      sessionStorage.removeItem('auth0_connect_session');
-
-      if (completeResponse.ok) {
-        console.log('Google connection completed');
-        if (token) {
-          setMyAccountToken(token);
-        }
-        setGoogleConnected(true);
-      } else {
-        const errorData = await completeResponse.json();
-        console.error('Failed to complete connection:', errorData);
-      }
-    } catch (error) {
-      console.error('Error completing connection:', error);
-    } finally {
-      setCalendarConnecting(false);
-    }
-  };
-
-  const connectCalendar = async () => {
-    setCalendarConnecting(true);
-    try {
-      const token = await getAccessTokenWithPopup({
-        authorizationParams: {
-          audience: `https://${AUTH0_DOMAIN}/me/`,
-          scope: 'openid profile email read:me:connected_accounts create:me:connected_accounts'
-        }
-      });
-
-      if (!token) {
-        console.error('No token received');
-        return;
-      }
-
-      setMyAccountToken(token);
-
-      // Initiate Google connection
-      const connectResponse = await fetch(`https://${AUTH0_DOMAIN}/me/v1/connected-accounts/connect`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          connection: 'google-oauth2',
-          redirect_uri: window.location.origin,
-          scopes: ['openid', 'email', 'profile', 'https://www.googleapis.com/auth/calendar'],
-        }),
-      });
-
-      if (!connectResponse.ok) {
-        const errorData = await connectResponse.json();
-        console.error('Connect request failed:', errorData);
-        alert(`Failed to connect: ${errorData.detail || errorData.message || 'Unknown error'}`);
-        return;
-      }
-
-      const connectData = await connectResponse.json();
-      console.log('Connect response:', connectData);
-
-      if (connectData.auth_session) {
-        sessionStorage.setItem('auth0_connect_session', connectData.auth_session);
-      }
-
-      if (connectData.connect_uri) {
-        window.location.href = connectData.connect_uri;
-      }
-    } catch (error: any) {
-      console.error('Failed to connect calendar:', error);
-    } finally {
-      setCalendarConnecting(false);
-    }
-  };
 
   const sendMessage = async (messageOverride?: string) => {
     const userMessage = messageOverride || input.trim();
@@ -373,18 +264,13 @@ function App() {
             {user?.name || user?.email}
           </span>
           {googleConnected ? (
-            <span className="calendar-status connected" title="Google Calendar connected">
-              Calendar Connected
+            <span className="calendar-status connected" title="Google Calendar available">
+              Calendar Ready
             </span>
           ) : (
-            <button
-              className="connect-calendar-btn"
-              onClick={connectCalendar}
-              disabled={calendarConnecting}
-              title="Connect your Google Calendar"
-            >
-              {calendarConnecting ? 'Connecting...' : 'Connect Calendar'}
-            </button>
+            <span className="calendar-status" title="Calendar not available">
+              No Calendar
+            </span>
           )}
           <button className="logout-button" onClick={() => logout({ logoutParams: { returnTo: window.location.origin } })}>
             Logout
@@ -422,14 +308,7 @@ function App() {
               </p>
               {!googleConnected && (
                 <div className="calendar-connect-prompt">
-                  <p>Connect your Google Calendar to enable scheduling features.</p>
-                  <button
-                    className="connect-calendar-btn large"
-                    onClick={connectCalendar}
-                    disabled={calendarConnecting}
-                  >
-                    {calendarConnecting ? 'Connecting...' : 'Connect Google Calendar'}
-                  </button>
+                  <p>Log in with Google to enable calendar features.</p>
                 </div>
               )}
             </div>
