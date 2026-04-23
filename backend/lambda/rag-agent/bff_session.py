@@ -16,7 +16,7 @@ from botocore.exceptions import ClientError
 # Configuration
 SESSION_TABLE_NAME = os.environ.get("SESSION_TABLE_NAME", "rag-health-sessions-dev")
 SESSION_MAX_AGE = int(os.environ.get("SESSION_MAX_AGE", "86400"))  # 24 hours
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "https://rag-health.demo-connect.us")
 
 # DynamoDB client
 dynamodb = boto3.resource("dynamodb")

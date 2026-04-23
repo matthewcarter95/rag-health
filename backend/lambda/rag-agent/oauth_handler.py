@@ -33,8 +33,10 @@ from bff_session import (
 AUTH0_DOMAIN = os.environ.get("AUTH0_DOMAIN", "violet-hookworm-18506.cic-demo-platform.auth0app.com")
 AUTH0_BFF_CLIENT_ID = os.environ.get("AUTH0_BFF_CLIENT_ID", "gYVmHq3MbrI73Uf1Qikb1ze5KfBdDLxe")
 AUTH0_BFF_CLIENT_SECRET = os.environ.get("AUTH0_BFF_CLIENT_SECRET", "")
+AUTH0_API_AUDIENCE = os.environ.get("AUTH0_API_AUDIENCE", "https://api.rag-health.example.com")
 AUTH0_CALLBACK_URL = os.environ.get("AUTH0_CALLBACK_URL", "")
-FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+API_DOMAIN = os.environ.get("API_DOMAIN", "")  # Custom domain (e.g., api.rag-health.demo-connect.us)
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "https://rag-health.demo-connect.us")
 OAUTH_STATE_TABLE_NAME = os.environ.get("OAUTH_STATE_TABLE_NAME", "rag-health-oauth-state-dev")
 
 # OAuth scopes to request
@@ -132,9 +134,12 @@ def handle_login(event: Dict[str, Any]) -> Dict[str, Any]:
     # Determine callback URL
     callback_url = AUTH0_CALLBACK_URL
     if not callback_url:
-        # Build from Lambda Function URL
-        host = event.get("requestContext", {}).get("domainName", "")
-        callback_url = f"https://{host}/auth/callback"
+        # Prefer custom API domain if configured, otherwise use Lambda Function URL
+        if API_DOMAIN:
+            callback_url = f"https://{API_DOMAIN}/auth/callback"
+        else:
+            host = event.get("requestContext", {}).get("domainName", "")
+            callback_url = f"https://{host}/auth/callback"
 
     # Generate PKCE pair and state
     code_verifier, code_challenge = generate_pkce_pair()
@@ -142,6 +147,7 @@ def handle_login(event: Dict[str, Any]) -> Dict[str, Any]:
 
     # Store state for callback verification
     store_oauth_state(state, code_verifier, callback_url)
+    print(f"[OAuth] Login initiated - callback_url: {callback_url}, state: {state[:8]}...")
 
     # Build Auth0 authorization URL
     auth_params = {
@@ -149,6 +155,7 @@ def handle_login(event: Dict[str, Any]) -> Dict[str, Any]:
         "client_id": AUTH0_BFF_CLIENT_ID,
         "redirect_uri": callback_url,
         "scope": OAUTH_SCOPES,
+        "audience": AUTH0_API_AUDIENCE,
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
@@ -274,6 +281,8 @@ def exchange_code_for_tokens(code: str, code_verifier: str, redirect_uri: str) -
             error_data = response.json()
             error_msg = error_data.get("error_description", error_data.get("error", "Token exchange failed"))
             print(f"[OAuth] Token exchange failed: {response.status_code} - {error_msg}")
+            print(f"[OAuth] Full error response: {error_data}")
+            print(f"[OAuth] Request payload (sans secret): grant_type={payload['grant_type']}, client_id={payload['client_id']}, redirect_uri={payload['redirect_uri']}, code_verifier_len={len(payload.get('code_verifier', ''))}")
             raise OAuthError(error_msg)
 
         return response.json()
@@ -348,7 +357,9 @@ def handle_me(event: Dict[str, Any]) -> Dict[str, Any]:
     # Extract session ID from cookie
     headers = event.get("headers", {})
     cookie_header = headers.get("cookie") or headers.get("Cookie")
+    print(f"[OAuth] /auth/me called - cookie header present: {bool(cookie_header)}, value: {cookie_header[:50] if cookie_header else 'None'}...")
     session_id = extract_session_id_from_cookie(cookie_header)
+    print(f"[OAuth] /auth/me - extracted session_id: {session_id[:16] if session_id else 'None'}...")
 
     if not session_id:
         return {

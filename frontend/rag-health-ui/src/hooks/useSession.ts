@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 
-const API_URL = 'https://5e3ecqd7qkwygbyik3fmh5qq4u0qlhul.lambda-url.us-east-1.on.aws';
+const API_URL = process.env.REACT_APP_API_URL || 'https://api.rag-health.demo-connect.us';
 
 interface User {
   id: string;

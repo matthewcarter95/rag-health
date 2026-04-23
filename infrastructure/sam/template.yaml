@@ -71,11 +71,24 @@ Parameters:
   FrontendOrigin:
     Type: String
     Description: Frontend origin for CORS (Amplify URL)
-    Default: https://main.d1fibl5x7tpwva.amplifyapp.com
+    Default: https://rag-health.demo-connect.us
   SessionMaxAge:
     Type: String
     Description: Session max age in seconds (24 hours default)
     Default: "86400"
+  # CloudFront Custom Domain Parameters
+  ApiDomainName:
+    Type: String
+    Description: Custom domain for API (e.g., api.rag-health.demo-connect.us)
+    Default: api.rag-health.demo-connect.us
+  ApiCertificateArn:
+    Type: String
+    Description: ACM Certificate ARN for API domain (must be in us-east-1)
+    Default: ""
+  LambdaFunctionUrl:
+    Type: String
+    Description: Lambda Function URL (without https:// and trailing /)
+    Default: 5e3ecqd7qkwygbyik3fmh5qq4u0qlhul.lambda-url.us-east-1.on.aws
 
 Globals:
   Function:
@@ -108,6 +121,11 @@ Globals:
         SESSION_TABLE_NAME: !Ref SessionsTable
         OAUTH_STATE_TABLE_NAME: !Ref OAuthStateTable
         SESSION_MAX_AGE: !Ref SessionMaxAge
+        # Custom API domain for callbacks (used if CloudFront is configured)
+        API_DOMAIN: !Ref ApiDomainName
+
+Conditions:
+  HasApiCertificate: !Not [!Equals [!Ref ApiCertificateArn, ""]]
 
 Resources:
   # DynamoDB Table for User Subscriptions
@@ -257,6 +275,54 @@ Resources:
       DockerContext: ../../backend/lambda/rag-agent
       DockerTag: latest
 
+  # CloudFront Distribution for API Custom Domain
+  ApiCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Condition: HasApiCertificate
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: !Sub "RAG Health API - ${Environment}"
+        Aliases:
+          - !Ref ApiDomainName
+        ViewerCertificate:
+          AcmCertificateArn: !Ref ApiCertificateArn
+          SslSupportMethod: sni-only
+          MinimumProtocolVersion: TLSv1.2_2021
+        Origins:
+          - Id: LambdaFunctionUrl
+            DomainName: !Ref LambdaFunctionUrl
+            CustomOriginConfig:
+              HTTPSPort: 443
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols:
+                - TLSv1.2
+        DefaultCacheBehavior:
+          TargetOriginId: LambdaFunctionUrl
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+            - PUT
+            - POST
+            - PATCH
+            - DELETE
+          CachedMethods:
+            - GET
+            - HEAD
+            - OPTIONS
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
+          Compress: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+      Tags:
+        - Key: Application
+          Value: rag-health
+        - Key: Environment
+          Value: !Ref Environment
+
 Outputs:
   RagAgentFunctionName:
     Description: RAG Agent Lambda Function Name
@@ -293,3 +359,17 @@ Outputs:
     Value: !Ref ContentBucket
     Export:
       Name: !Sub "${AWS::StackName}-ContentBucket"
+
+  ApiCloudFrontDomainName:
+    Condition: HasApiCertificate
+    Description: CloudFront Distribution Domain Name (for DNS CNAME)
+    Value: !GetAtt ApiCloudFrontDistribution.DomainName
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiCloudFrontDomain"
+
+  ApiCustomDomain:
+    Condition: HasApiCertificate
+    Description: Custom API Domain
+    Value: !Sub "https://${ApiDomainName}"
+    Export:
+      Name: !Sub "${AWS::StackName}-ApiCustomDomain"

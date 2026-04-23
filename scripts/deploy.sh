@@ -16,6 +16,10 @@
 # Environment variables:
 #   AWS_REGION: AWS region (default: us-east-1)
 #   FGA_STORE_ID, FGA_API_URL, FGA_MODEL_ID: Optional FGA config
+#   API_CERTIFICATE_ARN: ACM certificate ARN for CloudFront custom domain (us-east-1)
+#   API_DOMAIN_NAME: Custom API domain (e.g., api.rag-health.demo-connect.us)
+#   LAMBDA_FUNCTION_URL: Lambda Function URL host (without https://)
+#   AUTH0_BFF_CLIENT_SECRET: Auth0 BFF client secret (required for OAuth)
 
 set -e
 
@@ -103,6 +107,12 @@ deploy_sam() {
     [ -n "$FGA_STORE_ID" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} FgaStoreId=${FGA_STORE_ID}"
     [ -n "$FGA_API_URL" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} FgaApiUrl=${FGA_API_URL}"
     [ -n "$FGA_MODEL_ID" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} FgaModelId=${FGA_MODEL_ID}"
+    # CloudFront/API domain parameters
+    [ -n "$API_CERTIFICATE_ARN" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} ApiCertificateArn=${API_CERTIFICATE_ARN}"
+    [ -n "$API_DOMAIN_NAME" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} ApiDomainName=${API_DOMAIN_NAME}"
+    [ -n "$LAMBDA_FUNCTION_URL" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} LambdaFunctionUrl=${LAMBDA_FUNCTION_URL}"
+    # Auth0 BFF secrets
+    [ -n "$AUTH0_BFF_CLIENT_SECRET" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} Auth0BFFClientSecret=${AUTH0_BFF_CLIENT_SECRET}"
 
     sam deploy \
         --stack-name "${STACK_NAME}" \

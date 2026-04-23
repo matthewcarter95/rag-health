@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSession } from './hooks/useSession';
 import './App.css';
 
-const API_URL = 'https://5e3ecqd7qkwygbyik3fmh5qq4u0qlhul.lambda-url.us-east-1.on.aws';
+const API_URL = process.env.REACT_APP_API_URL || 'https://api.rag-health.demo-connect.us';
 
 interface Message {
   role: 'user' | 'assistant';
