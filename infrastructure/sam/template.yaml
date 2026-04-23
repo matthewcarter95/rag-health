@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: RAG Health - FGA-Governed Content Repository with Bedrock Agent
+Description: RAG Health - FGA-Governed Content Repository with Bedrock Agent (BFF Pattern)
 
 Parameters:
   Environment:
@@ -58,6 +58,24 @@ Parameters:
   BedrockModelId:
     Type: String
     Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  # BFF OAuth Parameters
+  Auth0BFFClientId:
+    Type: String
+    Description: Auth0 BFF Confidential Client ID (Regular Web Application)
+    Default: gYVmHq3MbrI73Uf1Qikb1ze5KfBdDLxe
+  Auth0BFFClientSecret:
+    Type: String
+    Description: Auth0 BFF Confidential Client Secret
+    NoEcho: true
+    Default: ""
+  FrontendOrigin:
+    Type: String
+    Description: Frontend origin for CORS (Amplify URL)
+    Default: https://main.d1fibl5x7tpwva.amplifyapp.com
+  SessionMaxAge:
+    Type: String
+    Description: Session max age in seconds (24 hours default)
+    Default: "86400"
 
 Globals:
   Function:
@@ -83,6 +101,13 @@ Globals:
         S3_CONTENT_BUCKET: !Ref ContentBucket
         BEDROCK_MODEL_ID: !Ref BedrockModelId
         AWS_REGION_NAME: us-east-1
+        # BFF OAuth Configuration
+        AUTH0_BFF_CLIENT_ID: !Ref Auth0BFFClientId
+        AUTH0_BFF_CLIENT_SECRET: !Ref Auth0BFFClientSecret
+        FRONTEND_ORIGIN: !Ref FrontendOrigin
+        SESSION_TABLE_NAME: !Ref SessionsTable
+        OAUTH_STATE_TABLE_NAME: !Ref OAuthStateTable
+        SESSION_MAX_AGE: !Ref SessionMaxAge
 
 Resources:
   # DynamoDB Table for User Subscriptions
@@ -106,6 +131,48 @@ Resources:
               KeyType: HASH
           Projection:
             ProjectionType: ALL
+      Tags:
+        - Key: Application
+          Value: rag-health
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DynamoDB Table for BFF Sessions
+  SessionsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "rag-health-sessions-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: session_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: session_id
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      Tags:
+        - Key: Application
+          Value: rag-health
+        - Key: Environment
+          Value: !Ref Environment
+
+  # DynamoDB Table for OAuth State (PKCE)
+  OAuthStateTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "rag-health-oauth-state-${Environment}"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: state
+          AttributeType: S
+      KeySchema:
+        - AttributeName: state
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
       Tags:
         - Key: Application
           Value: rag-health
@@ -168,6 +235,15 @@ Resources:
                 - !Sub "${SubscriptionsTable.Arn}/index/*"
             - Effect: Allow
               Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+                - dynamodb:UpdateItem
+              Resource:
+                - !GetAtt SessionsTable.Arn
+                - !GetAtt OAuthStateTable.Arn
+            - Effect: Allow
+              Action:
                 - s3:GetObject
                 - s3:ListBucket
               Resource:
@@ -199,6 +275,18 @@ Outputs:
     Value: !Ref SubscriptionsTable
     Export:
       Name: !Sub "${AWS::StackName}-SubscriptionsTable"
+
+  SessionsTableName:
+    Description: DynamoDB Sessions Table Name
+    Value: !Ref SessionsTable
+    Export:
+      Name: !Sub "${AWS::StackName}-SessionsTable"
+
+  OAuthStateTableName:
+    Description: DynamoDB OAuth State Table Name
+    Value: !Ref OAuthStateTable
+    Export:
+      Name: !Sub "${AWS::StackName}-OAuthStateTable"
 
   ContentBucketName:
     Description: S3 Content Bucket Name

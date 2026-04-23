@@ -2,44 +2,84 @@
 Lambda Function URL Handler
 
 Main entry point for the RAG Health agent API.
-Handles Auth0 JWT validation, RAG queries, and Google Calendar operations.
+Supports both BFF session-based auth (primary) and legacy JWT auth (fallback).
 
-Calendar integration uses Auth0 Connected Accounts API to retrieve
-Google access tokens for calendar operations.
+BFF Pattern:
+- OAuth endpoints: /auth/login, /auth/callback, /auth/logout, /auth/me
+- Session-based auth via HTTP-only cookies
+- Calendar tokens retrieved from Auth0 Token Vault
+
+Calendar integration uses Auth0 Token Vault to retrieve Google access tokens.
 """
 
 import json
 import os
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
+from chains import create_rag_chain
+from google_calendar import (
+    CalendarError,
+    list_calendar_events,
+    create_calendar_event,
+    format_events_for_display,
+)
+from token_vault import get_google_token, TokenVaultError
+from bff_session import (
+    SessionError,
+    validate_session,
+    extract_session_id_from_cookie,
+    get_user_context as get_session_user_context,
+    build_session_cookie,
+    build_clear_session_cookie,
+)
+from oauth_handler import (
+    handle_login,
+    handle_callback,
+    handle_logout,
+    handle_me,
+)
+
+# Legacy auth imports (kept for backward compatibility during migration)
 from auth0_jwt import (
     AuthError,
     extract_bearer_token,
     validate_auth0_token,
-    get_user_context,
-    require_scope,
-)
-from chains import create_rag_chain
-from google_calendar import (
-    CalendarError,
-    list_events_tool,
-    create_event_tool,
+    get_user_context as get_jwt_user_context,
 )
 
-# CORS headers for Function URL responses
-CORS_HEADERS = {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization,content-type,x-requested-with",
-    "Access-Control-Allow-Methods": "POST,OPTIONS",
-    "Content-Type": "application/json",
-}
+# Configuration
+FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "http://localhost:3000")
+
+# CORS headers for Function URL responses (cross-origin with credentials)
+def get_cors_headers(include_credentials: bool = True) -> Dict[str, str]:
+    """Get CORS headers for responses."""
+    headers = {
+        "Access-Control-Allow-Origin": FRONTEND_ORIGIN,
+        "Access-Control-Allow-Headers": "authorization,content-type,x-requested-with",
+        "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+        "Content-Type": "application/json",
+    }
+    if include_credentials:
+        headers["Access-Control-Allow-Credentials"] = "true"
+    return headers
 
 
-def create_response(status_code: int, body: Dict[str, Any]) -> Dict[str, Any]:
+CORS_HEADERS = get_cors_headers()
+
+
+def create_response(
+    status_code: int,
+    body: Dict[str, Any],
+    extra_headers: Optional[Dict[str, str]] = None,
+) -> Dict[str, Any]:
     """Create a Lambda Function URL response."""
+    headers = CORS_HEADERS.copy()
+    if extra_headers:
+        headers.update(extra_headers)
+
     return {
         "statusCode": status_code,
-        "headers": CORS_HEADERS,
+        "headers": headers,
         "body": json.dumps(body),
     }
 
@@ -51,6 +91,50 @@ def handle_options() -> Dict[str, Any]:
         "headers": CORS_HEADERS,
         "body": "",
     }
+
+
+def get_auth_context(event: Dict[str, Any]) -> tuple[Dict[str, Any], Optional[str]]:
+    """
+    Get authentication context from session cookie or Bearer token.
+
+    Tries session-based auth first (BFF pattern), falls back to JWT.
+
+    Args:
+        event: Lambda event
+
+    Returns:
+        (user_context, error_message) - user_context if authenticated, error if not
+
+    Raises:
+        AuthError: If authentication fails
+    """
+    headers = event.get("headers", {})
+
+    # Try session-based auth first (BFF pattern)
+    cookie_header = headers.get("cookie") or headers.get("Cookie")
+    session_id = extract_session_id_from_cookie(cookie_header)
+
+    if session_id:
+        session = validate_session(session_id)
+        if session:
+            user_context = get_session_user_context(session)
+            # Add session reference for calendar operations
+            user_context["_session"] = session
+            return user_context, None
+
+    # Fall back to Bearer token auth (legacy)
+    auth_header = headers.get("authorization") or headers.get("Authorization")
+    if auth_header:
+        try:
+            token = extract_bearer_token(auth_header)
+            claims = validate_auth0_token(token)
+            user_context = get_jwt_user_context(claims)
+            return user_context, None
+        except AuthError as e:
+            raise e
+
+    # No authentication provided
+    raise AuthError("Authentication required", 401)
 
 
 def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
@@ -90,65 +174,63 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
         return create_response(500, {"error": f"Failed to process query: {str(e)}"})
 
 
-def handle_calendar_list(
-    user_context: Dict[str, Any],
-    myaccount_token: str
-) -> Dict[str, Any]:
+def handle_calendar_list_bff(user_context: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle calendar event listing requests.
-
-    Uses Auth0 Connected Accounts API to retrieve Google access token.
+    Handle calendar event listing using Token Vault (BFF pattern).
 
     Args:
         user_context: Authenticated user context
-        myaccount_token: User's Auth0 MyAccount token
 
     Returns:
         Response with calendar events
     """
-    if not myaccount_token:
-        return create_response(400, {
-            "error": "MyAccount token required. Please connect your Google Calendar first."
-        })
+    user_id = user_context.get("user_id")
 
     try:
-        events_display = list_events_tool(myaccount_token)
+        # Get Google token from Token Vault
+        google_token = get_google_token(user_id)
+
+        if not google_token:
+            return create_response(200, {
+                "events": "Unable to access your Google Calendar. Please log out and log back in with Google to reconnect.",
+                "error": "no_google_token",
+            })
+
+        # List calendar events
+        events = list_calendar_events(google_token)
+        events_display = format_events_for_display(events)
 
         return create_response(200, {
             "events": events_display,
         })
 
+    except CalendarError as e:
+        print(f"Calendar list error: {e.message}")
+        return create_response(e.status_code, {"error": e.message})
     except Exception as e:
         print(f"Calendar list error: {str(e)}")
         return create_response(500, {"error": f"Failed to list calendar events: {str(e)}"})
 
 
-def handle_calendar_create(
+def handle_calendar_create_bff(
     user_context: Dict[str, Any],
     body: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Handle calendar event creation requests.
-
-    Uses Auth0 Connected Accounts API to retrieve Google access token.
+    Handle calendar event creation using Token Vault (BFF pattern).
 
     Args:
         user_context: Authenticated user context
-        body: Request body with event details and myaccount_token
+        body: Request body with event details
 
     Returns:
         Response with created event confirmation
     """
-    myaccount_token = body.get("myaccount_token", "")
+    user_id = user_context.get("user_id")
     summary = body.get("summary", "").strip()
     start_time = body.get("start_time", "").strip()
     end_time = body.get("end_time", "").strip()
     description = body.get("description")
-
-    if not myaccount_token:
-        return create_response(400, {
-            "error": "myaccount_token is required for calendar operations"
-        })
 
     if not summary or not start_time or not end_time:
         return create_response(400, {
@@ -156,24 +238,45 @@ def handle_calendar_create(
         })
 
     try:
-        result = create_event_tool(
-            myaccount_token=myaccount_token,
+        # Get Google token from Token Vault
+        google_token = get_google_token(user_id)
+
+        if not google_token:
+            return create_response(400, {
+                "error": "Unable to access Google Calendar. Please log out and log back in."
+            })
+
+        # Parse datetime strings
+        from datetime import datetime
+        start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+        end_dt = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
+
+        # Create event
+        event = create_calendar_event(
+            google_token=google_token,
             summary=summary,
-            start_time=start_time,
-            end_time=end_time,
+            start_time=start_dt,
+            end_time=end_dt,
             description=description,
         )
 
+        event_link = event.get("htmlLink", "")
         return create_response(200, {
-            "result": result,
+            "result": f"Event '{summary}' created successfully!",
+            "event_link": event_link,
         })
 
+    except CalendarError as e:
+        print(f"Calendar create error: {e.message}")
+        return create_response(e.status_code, {"error": e.message})
+    except ValueError as e:
+        return create_response(400, {"error": f"Invalid date format: {str(e)}"})
     except Exception as e:
         print(f"Calendar create error: {str(e)}")
         return create_response(500, {"error": f"Failed to create calendar event: {str(e)}"})
 
 
-def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str, Any]) -> Dict[str, Any]:
+def handle_chat(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
     """
     Handle conversational chat requests with RAG and calendar tools.
 
@@ -182,19 +285,16 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
     - List calendar events
     - Create calendar events
 
-    Calendar access uses Auth0 Connected Accounts API to retrieve Google access token.
+    Calendar access uses Token Vault (no myaccount_token needed).
 
     Args:
         user_context: Authenticated user context
-        access_token: User's Auth0 access token (for API authorization)
-        body: Request body with 'message' field, optional 'myaccount_token'
+        body: Request body with 'message' field
 
     Returns:
         Response with chat answer
     """
     message = body.get("message", "").strip()
-    # MyAccount token for Connected Accounts API
-    myaccount_token = body.get("myaccount_token", "")
 
     if not message:
         return create_response(400, {"error": "Message is required"})
@@ -206,24 +306,36 @@ def handle_chat(user_context: Dict[str, Any], access_token: str, body: Dict[str,
         # Check for calendar-related intents
         calendar_keywords = ["calendar", "schedule", "appointment", "event", "meeting", "meetings"]
         if any(keyword in message_lower for keyword in calendar_keywords):
-            # Check if we have a MyAccount token for calendar access
-            if not myaccount_token:
+            user_id = user_context.get("user_id")
+
+            # Try to get Google token from Token Vault
+            google_token = get_google_token(user_id)
+
+            if not google_token:
                 return create_response(200, {
                     "answer": (
-                        "To access your calendar, please connect your Google account first.\n\n"
-                        "Click the 'Connect Calendar' button in the header to link your Google Calendar."
+                        "Unable to access your Google Calendar. "
+                        "Please log out and log back in with Google to reconnect your calendar."
                     ),
                     "intent": "calendar_auth_required",
                 })
 
             if any(keyword in message_lower for keyword in ["what", "list", "show", "upcoming", "do i have", "any"]):
-                # List events using Connected Accounts
-                events_display = list_events_tool(myaccount_token)
-                return create_response(200, {
-                    "answer": events_display,
-                    "intent": "calendar_list",
-                })
-            # For create, we'd need more structured input - guide user
+                # List events using Token Vault
+                try:
+                    events = list_calendar_events(google_token)
+                    events_display = format_events_for_display(events)
+                    return create_response(200, {
+                        "answer": events_display,
+                        "intent": "calendar_list",
+                    })
+                except CalendarError as e:
+                    return create_response(200, {
+                        "answer": f"Failed to retrieve calendar events: {e.message}",
+                        "intent": "calendar_error",
+                    })
+
+            # For create, guide user to provide structured input
             elif any(keyword in message_lower for keyword in ["create", "add", "schedule", "book"]):
                 return create_response(200, {
                     "answer": (
@@ -260,13 +372,20 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
     Lambda Function URL handler.
 
-    Endpoints:
-    - POST /query - RAG query (requires read:content scope)
-    - POST /chat - Conversational chat with RAG and calendar
-    - GET /calendar - List calendar events (requires read:calendar scope)
-    - POST /calendar/create - Create calendar event (requires write:calendar scope)
+    Auth Endpoints (no auth required):
+    - POST /auth/login - Initiate OAuth flow
+    - GET /auth/callback - OAuth callback
+    - POST /auth/logout - End session
+    - GET /auth/me - Get current user
 
-    All endpoints require Auth0 Bearer token authentication.
+    API Endpoints (session or Bearer token required):
+    - POST /query - RAG query
+    - POST /chat - Conversational chat with RAG and calendar
+    - GET /calendar - List calendar events
+    - POST /calendar/create - Create calendar event
+
+    Utility Endpoints:
+    - GET /health - Health check (no auth)
     """
     # Handle CORS preflight
     http_method = event.get("requestContext", {}).get("http", {}).get("method", "")
@@ -281,18 +400,35 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return create_response(200, {
             "status": "healthy",
             "environment": os.environ.get("ENVIRONMENT", "unknown"),
+            "auth_mode": "bff",
         })
 
-    # Get Authorization header
-    headers = event.get("headers", {})
-    auth_header = headers.get("authorization") or headers.get("Authorization")
+    # OAuth endpoints - no auth required (they establish auth)
+    if path == "/auth/login" and http_method == "POST":
+        response = handle_login(event)
+        response["headers"] = {**CORS_HEADERS, **response.get("headers", {})}
+        return response
 
+    if path == "/auth/callback" and http_method == "GET":
+        response = handle_callback(event)
+        response["headers"] = {**CORS_HEADERS, **response.get("headers", {})}
+        return response
+
+    if path == "/auth/logout" and http_method == "POST":
+        response = handle_logout(event)
+        response["headers"] = {**CORS_HEADERS, **response.get("headers", {})}
+        return response
+
+    if path == "/auth/me" and http_method == "GET":
+        response = handle_me(event)
+        response["headers"] = {**CORS_HEADERS, **response.get("headers", {})}
+        return response
+
+    # Protected endpoints - require authentication
     try:
-        # Validate Auth0 token
-        token = extract_bearer_token(auth_header)
-        claims = validate_auth0_token(token)
-        user_context = get_user_context(claims)
-
+        user_context, error = get_auth_context(event)
+        if error:
+            return create_response(401, {"error": error})
     except AuthError as e:
         return create_response(e.status_code, {"error": e.error})
 
@@ -307,24 +443,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     # Route to appropriate handler
     try:
         if path == "/query" and http_method == "POST":
-            require_scope(claims, "read:content")
             return handle_query(user_context, body)
 
         elif path == "/chat" and http_method == "POST":
-            # Chat requires read:content, calendar scopes are optional
-            require_scope(claims, "read:content")
-            return handle_chat(user_context, token, body)
+            return handle_chat(user_context, body)
 
         elif path == "/calendar" and http_method == "GET":
-            require_scope(claims, "read:calendar")
-            # Get myaccount_token from query params or body (for Connected Accounts API)
-            query_params = event.get("queryStringParameters", {}) or {}
-            myaccount_token = query_params.get("myaccount_token", "") or body.get("myaccount_token", "")
-            return handle_calendar_list(user_context, myaccount_token)
+            return handle_calendar_list_bff(user_context)
 
         elif path == "/calendar/create" and http_method == "POST":
-            require_scope(claims, "write:calendar")
-            return handle_calendar_create(user_context, body)
+            return handle_calendar_create_bff(user_context, body)
 
         else:
             return create_response(404, {"error": f"Not found: {http_method} {path}"})
