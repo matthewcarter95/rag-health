@@ -73,12 +73,15 @@ def get_google_token_via_connected_accounts(myaccount_token: str) -> Optional[st
 
         # Find Google account
         google_account_id = None
+        google_connection = None
         for acc in accounts:
-            connection = acc.get("connection", "").lower()
+            connection = acc.get("connection", "")
             provider = acc.get("provider", "").lower()
-            if "google" in connection or "google" in provider:
+            if "google" in connection.lower() or "google" in provider:
                 google_account_id = acc.get("id")
-                print(f"[Calendar] Found Google account: {google_account_id}")
+                google_connection = connection  # Keep original case
+                print(f"[Calendar] Found Google account: {google_account_id}, connection: {google_connection}")
+                print(f"[Calendar] Full account data: {acc}")
                 break
 
         if not google_account_id:
@@ -86,19 +89,37 @@ def get_google_token_via_connected_accounts(myaccount_token: str) -> Optional[st
             return None
 
         # Get the token for this connected account
-        token_url = f"{MYACCOUNT_BASE_URL}/connected-accounts/accounts/{google_account_id}/token"
+        # Auth0 Connected Accounts API: POST /me/v1/connected-accounts/tokens
+        token_url = f"{MYACCOUNT_BASE_URL}/connected-accounts/tokens"
         print(f"[Calendar] Fetching Google token from: {token_url}")
+        print(f"[Calendar] Using account_id: {google_account_id}, connection: {google_connection}")
 
-        token_response = requests.get(
+        # Try with account_id first
+        token_response = requests.post(
             token_url,
             headers={
                 "Authorization": f"Bearer {myaccount_token}",
                 "Content-Type": "application/json",
             },
+            json={"account_id": google_account_id},
             timeout=10,
         )
 
-        print(f"[Calendar] Token endpoint response status: {token_response.status_code}")
+        print(f"[Calendar] Token endpoint response status (account_id): {token_response.status_code}")
+
+        # If account_id doesn't work, try connection name
+        if token_response.status_code in [400, 404] and google_connection:
+            print(f"[Calendar] Trying with connection name: {google_connection}")
+            token_response = requests.post(
+                token_url,
+                headers={
+                    "Authorization": f"Bearer {myaccount_token}",
+                    "Content-Type": "application/json",
+                },
+                json={"connection": google_connection},
+                timeout=10,
+            )
+            print(f"[Calendar] Token endpoint response status (connection): {token_response.status_code}")
 
         if token_response.status_code == 200:
             token_data = token_response.json()

@@ -113,6 +113,8 @@ deploy_sam() {
     [ -n "$LAMBDA_FUNCTION_URL" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} LambdaFunctionUrl=${LAMBDA_FUNCTION_URL}"
     # Auth0 BFF secrets
     [ -n "$AUTH0_BFF_CLIENT_SECRET" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} Auth0BFFClientSecret=${AUTH0_BFF_CLIENT_SECRET}"
+    # Frontend origin for CORS
+    [ -n "$FRONTEND_ORIGIN" ] && PARAM_OVERRIDES="${PARAM_OVERRIDES} FrontendOrigin=${FRONTEND_ORIGIN}"
 
     sam deploy \
         --stack-name "${STACK_NAME}" \

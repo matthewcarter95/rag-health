@@ -48,7 +48,7 @@ const SAMPLE_PROMPTS = [
 
 function App() {
   // BFF session-based auth (replaces useAuth0)
-  const { isAuthenticated, isLoading, user, login, logout } = useSession();
+  const { isAuthenticated, isLoading, user, login, logout, googleConnected, connectGoogle } = useSession();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -180,10 +180,15 @@ function App() {
             {user?.picture && <img src={user.picture} alt="avatar" className="avatar" />}
             {user?.name || user?.email}
           </span>
-          {/* Calendar is always available in BFF pattern - backend handles tokens */}
-          <span className="calendar-status connected" title="Google Calendar available">
-            Calendar Ready
-          </span>
+          {googleConnected ? (
+            <span className="calendar-status connected" title="Google Calendar connected">
+              Calendar Connected
+            </span>
+          ) : (
+            <button className="connect-google-button" onClick={connectGoogle} title="Connect your Google Calendar">
+              Connect Google Calendar
+            </button>
+          )}
           <button className="logout-button" onClick={logout}>
             Logout
           </button>

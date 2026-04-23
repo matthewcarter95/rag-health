@@ -47,6 +47,7 @@ def create_session(
     access_token: str,
     refresh_token: Optional[str] = None,
     id_token: Optional[str] = None,
+    myaccount_token: Optional[str] = None,
 ) -> str:
     """
     Create a new session in DynamoDB.
@@ -61,6 +62,7 @@ def create_session(
         access_token: Auth0 access token
         refresh_token: Auth0 refresh token (optional)
         id_token: Auth0 ID token (optional)
+        myaccount_token: Auth0 MyAccount token for Connected Accounts API (optional)
 
     Returns:
         session_id: The generated session ID
@@ -83,6 +85,7 @@ def create_session(
         "access_token": access_token,
         "refresh_token": refresh_token or "",
         "id_token": id_token or "",
+        "myaccount_token": myaccount_token or "",
         "created_at": now,
         "expires_at": expires_at,
     }
@@ -190,6 +193,39 @@ def update_session_tokens(
         return True
     except ClientError as e:
         print(f"[Session] Failed to update tokens: {e}")
+        return False
+
+
+def update_session_connected_accounts(
+    session_id: str,
+    connected_accounts_refresh_token: str,
+) -> bool:
+    """
+    Update session with Connected Accounts refresh token.
+
+    This token is obtained through the Connected Accounts authorization flow
+    and can be used to retrieve identity provider tokens (like Google).
+
+    Args:
+        session_id: The session ID
+        connected_accounts_refresh_token: Refresh token from Connected Accounts flow
+
+    Returns:
+        True if updated, False if failed
+    """
+    if not session_id or not connected_accounts_refresh_token:
+        return False
+
+    try:
+        sessions_table.update_item(
+            Key={"session_id": session_id},
+            UpdateExpression="SET connected_accounts_refresh_token = :cart",
+            ExpressionAttributeValues={":cart": connected_accounts_refresh_token},
+        )
+        print(f"[Session] Updated Connected Accounts refresh token for session: {session_id[:8]}...")
+        return True
+    except ClientError as e:
+        print(f"[Session] Failed to update Connected Accounts token: {e}")
         return False
 
 

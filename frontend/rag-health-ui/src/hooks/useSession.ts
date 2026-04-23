@@ -15,12 +15,14 @@ interface SessionState {
   user: User | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  googleConnected: boolean;
 }
 
 interface UseSessionReturn extends SessionState {
   login: () => Promise<void>;
   logout: () => Promise<void>;
   checkSession: () => Promise<void>;
+  connectGoogle: () => Promise<void>;
 }
 
 /**
@@ -34,6 +36,7 @@ export function useSession(): UseSessionReturn {
     user: null,
     isLoading: true,
     isAuthenticated: false,
+    googleConnected: false,
   });
 
   /**
@@ -54,6 +57,7 @@ export function useSession(): UseSessionReturn {
             user: data.user,
             isLoading: false,
             isAuthenticated: true,
+            googleConnected: data.googleConnected || false,
           });
           return;
         }
@@ -64,6 +68,7 @@ export function useSession(): UseSessionReturn {
         user: null,
         isLoading: false,
         isAuthenticated: false,
+        googleConnected: false,
       });
     } catch (error) {
       console.error('Session check failed:', error);
@@ -71,6 +76,7 @@ export function useSession(): UseSessionReturn {
         user: null,
         isLoading: false,
         isAuthenticated: false,
+        googleConnected: false,
       });
     }
   }, []);
@@ -121,7 +127,35 @@ export function useSession(): UseSessionReturn {
       user: null,
       isLoading: false,
       isAuthenticated: false,
+      googleConnected: false,
     });
+  }, []);
+
+  /**
+   * Initiate Google Connected Accounts flow.
+   * Calls /auth/connect/google to get authorization URL, then redirects.
+   */
+  const connectGoogle = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/connect/google`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to initiate Google connection');
+      }
+
+      const data = await res.json();
+      if (data.authorization_url) {
+        // Redirect to Auth0 for Google connection
+        window.location.href = data.authorization_url;
+      } else {
+        console.error('No authorization URL in response');
+      }
+    } catch (error) {
+      console.error('Connect Google failed:', error);
+    }
   }, []);
 
   // Check session on mount
@@ -129,7 +163,7 @@ export function useSession(): UseSessionReturn {
     checkSession();
   }, [checkSession]);
 
-  // Handle OAuth callback (check URL for auth_error or code)
+  // Handle OAuth callback (check URL for auth_error, code, or connected)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -137,6 +171,16 @@ export function useSession(): UseSessionReturn {
     const authError = params.get('auth_error');
     if (authError) {
       console.error('Authentication error:', authError);
+      // Clean URL
+      window.history.replaceState({}, '', window.location.pathname);
+      return;
+    }
+
+    // Check for successful Google connection
+    const connected = params.get('connected');
+    if (connected === 'google') {
+      console.log('Google Calendar connected successfully');
+      setState(prev => ({ ...prev, googleConnected: true }));
       // Clean URL
       window.history.replaceState({}, '', window.location.pathname);
       return;
@@ -155,9 +199,11 @@ export function useSession(): UseSessionReturn {
     user: state.user,
     isLoading: state.isLoading,
     isAuthenticated: state.isAuthenticated,
+    googleConnected: state.googleConnected,
     login,
     logout,
     checkSession,
+    connectGoogle,
   };
 }
 
