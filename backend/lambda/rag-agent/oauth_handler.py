@@ -383,38 +383,36 @@ def get_myaccount_token(refresh_token: str) -> Optional[str]:
         return None
 
 
-def get_google_token_via_token_exchange(subject_token: str, user_id: str) -> Optional[str]:
+def get_google_token_via_token_exchange(refresh_token: str, connection: str = "google-oauth2") -> Optional[str]:
     """
-    Exchange Auth0 access token for Google access token using Federated Connection Token Exchange.
+    Exchange Auth0 refresh token for a federated connection access token (e.g., Google).
 
-    Uses the grant type: urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token
+    Uses the Auth0 Federated Connection Token Exchange grant type.
+    Reference: https://github.com/deepu105/auth0-token-vault-cli
 
     Args:
-        subject_token: Auth0 access token
-        user_id: Auth0 user ID (e.g., "google-oauth2|123456")
+        refresh_token: Auth0 refresh token (NOT access token)
+        connection: The connection name (default: "google-oauth2")
 
     Returns:
         Google access token if successful, None otherwise
     """
-    if not subject_token or not user_id:
-        print("[OAuth] Missing subject_token or user_id for token exchange")
-        return None
-
-    # Only works for Google users
-    if not user_id.startswith("google-oauth2|"):
-        print(f"[OAuth] User {user_id} is not a Google user, cannot exchange for Google token")
+    if not refresh_token:
+        print("[OAuth] Missing refresh_token for federated token exchange")
         return None
 
     token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
 
+    # Auth0 Federated Connection Token Exchange
+    # Uses refresh token to get IdP access token
     payload = {
         "grant_type": "urn:auth0:params:oauth:grant-type:token-exchange:federated-connection-access-token",
         "client_id": AUTH0_BFF_CLIENT_ID,
         "client_secret": AUTH0_BFF_CLIENT_SECRET,
-        "subject_token": subject_token,
-        "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
-        "connection": "google-oauth2",
-        "scope": "https://www.googleapis.com/auth/calendar",
+        "subject_token": refresh_token,
+        "subject_token_type": "urn:ietf:params:oauth:token-type:refresh_token",
+        "requested_token_type": "http://auth0.com/oauth/token-type/federated-connection-access-token",
+        "connection": connection,
     }
 
     try:

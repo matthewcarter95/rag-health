@@ -39,6 +39,7 @@ from oauth_handler import (
     handle_connect_google,
     handle_connect_callback,
     get_google_token_from_connected_accounts,
+    get_google_token_via_token_exchange,
 )
 
 # Legacy auth imports (kept for backward compatibility during migration)
@@ -178,9 +179,10 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
 
 def handle_calendar_list_bff(user_context: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle calendar event listing using Connected Accounts API (BFF pattern).
+    Handle calendar event listing using Federated Token Exchange (BFF pattern).
 
-    Uses Connected Accounts refresh token to retrieve Google access token.
+    Uses Auth0 Federated Token Exchange to get Google access token from the
+    user's Auth0 access token. Falls back to Connected Accounts if available.
 
     Args:
         user_context: Authenticated user context
@@ -189,26 +191,32 @@ def handle_calendar_list_bff(user_context: Dict[str, Any]) -> Dict[str, Any]:
         Response with calendar events
     """
     session = user_context.get("_session", {})
-    connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
+    refresh_token = session.get("refresh_token")
+    user_id = user_context.get("user_id", "")
 
     try:
-        # Check if user has connected their Google account
-        if not connected_accounts_refresh_token:
-            print("[Calendar] No Connected Accounts refresh token in session")
+        # Check if user logged in via Google
+        if not user_id.startswith("google-oauth2|"):
+            print(f"[Calendar] User {user_id} did not log in via Google")
             return create_response(200, {
-                "events": "Google Calendar not connected. Please connect your Google account first.",
-                "error": "not_connected",
-                "action": "connect_google",
+                "events": "Google Calendar requires logging in with a Google account.",
+                "error": "not_google_user",
             })
 
-        # Get Google token via Connected Accounts
-        google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
+        if not refresh_token:
+            print("[Calendar] No refresh token in session")
+            return create_response(200, {
+                "events": "Session expired. Please log in again.",
+                "error": "no_refresh_token",
+            })
+
+        # Get Google token via Federated Token Exchange
+        google_token = get_google_token_via_token_exchange(refresh_token)
 
         if not google_token:
             return create_response(200, {
                 "events": "Unable to access your Google Calendar. Please reconnect your Google account.",
-                "error": "token_retrieval_failed",
-                "action": "connect_google",
+                "error": "token_exchange_failed",
             })
 
         # List calendar events
@@ -242,7 +250,8 @@ def handle_calendar_create_bff(
         Response with created event confirmation
     """
     session = user_context.get("_session", {})
-    connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
+    refresh_token = session.get("refresh_token")
+    user_id = user_context.get("user_id", "")
 
     summary = body.get("summary", "").strip()
     start_time = body.get("start_time", "").strip()
@@ -255,19 +264,23 @@ def handle_calendar_create_bff(
         })
 
     try:
-        # Get Google token via Connected Accounts
-        if not connected_accounts_refresh_token:
+        # Check if user logged in via Google
+        if not user_id.startswith("google-oauth2|"):
             return create_response(400, {
-                "error": "Google Calendar not connected. Please connect your Google account first.",
-                "action": "connect_google",
+                "error": "Google Calendar requires logging in with a Google account.",
             })
 
-        google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
+        if not refresh_token:
+            return create_response(400, {
+                "error": "Session expired. Please log in again.",
+            })
+
+        # Get Google token via Federated Token Exchange
+        google_token = get_google_token_via_token_exchange(refresh_token)
 
         if not google_token:
             return create_response(400, {
                 "error": "Unable to access Google Calendar. Please reconnect your Google account.",
-                "action": "connect_google",
             })
 
         # Parse datetime strings
@@ -330,24 +343,30 @@ def handle_chat(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str,
         # Check for calendar-related intents
         calendar_keywords = ["calendar", "schedule", "appointment", "event", "meeting", "meetings"]
         if any(keyword in message_lower for keyword in calendar_keywords):
-            # Get Connected Accounts refresh token from session
+            # Get refresh token and user_id from session
             session = user_context.get("_session", {})
-            connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
+            refresh_token = session.get("refresh_token")
+            user_id = user_context.get("user_id", "")
 
-            # Check if Google is connected
-            if not connected_accounts_refresh_token:
+            # Check if user logged in via Google
+            if not user_id.startswith("google-oauth2|"):
                 return create_response(200, {
                     "answer": (
-                        "Google Calendar is not connected. "
-                        "Please connect your Google account to access calendar features."
+                        "Google Calendar requires logging in with a Google account. "
+                        "Please log out and log back in with Google."
                     ),
-                    "intent": "calendar_not_connected",
-                    "action": "connect_google",
+                    "intent": "calendar_not_google_user",
                 })
 
-            # Try to get Google token via Connected Accounts
+            if not refresh_token:
+                return create_response(200, {
+                    "answer": "Session expired. Please log in again.",
+                    "intent": "session_expired",
+                })
+
+            # Try to get Google token via Federated Token Exchange
             try:
-                google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
+                google_token = get_google_token_via_token_exchange(refresh_token)
             except Exception as e:
                 print(f"[Chat] Error getting Google token: {e}")
                 google_token = None
@@ -359,7 +378,6 @@ def handle_chat(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str,
                         "Please reconnect your Google account."
                     ),
                     "intent": "calendar_auth_required",
-                    "action": "connect_google",
                 })
 
             if any(keyword in message_lower for keyword in ["what", "list", "show", "upcoming", "do i have", "any"]):

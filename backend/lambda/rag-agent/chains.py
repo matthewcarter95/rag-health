@@ -19,7 +19,7 @@ from langchain_core.documents import Document
 from fga_retriever import create_fga_retriever
 
 # Configuration
-BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "anthropic.claude-3-5-sonnet-20241022-v2:0")
+BEDROCK_MODEL_ID = os.environ.get("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
 EMBEDDINGS_MODEL_ID = "amazon.titan-embed-text-v2:0"
 VECTORSTORE_PATH = os.environ.get("VECTORSTORE_PATH", "/tmp/vectorstore")
 AWS_REGION = os.environ.get("AWS_REGION_NAME", "us-east-1")
