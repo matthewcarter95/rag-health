@@ -160,8 +160,7 @@ def handle_login(event: Dict[str, Any]) -> Dict[str, Any]:
         "state": state,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
-        # Request Google login for calendar access
-        "connection": "google-oauth2",
+        # Don't specify connection - let user choose on Universal Login page
     }
 
     authorization_url = f"https://{AUTH0_DOMAIN}/authorize?{urlencode(auth_params)}"
@@ -721,9 +720,8 @@ def get_google_token_from_connected_accounts(connected_accounts_refresh_token: s
     """
     Get Google access token using the Connected Accounts refresh token.
 
-    This uses the refresh token obtained from the Connected Accounts flow to:
-    1. Get a MyAccount access token with connected accounts scope
-    2. Use that token to retrieve the Google access token
+    Uses Federated Token Exchange to get a Google access token from the
+    refresh token obtained during the Connect Google flow.
 
     Args:
         connected_accounts_refresh_token: Refresh token from Connected Accounts flow
@@ -735,44 +733,7 @@ def get_google_token_from_connected_accounts(connected_accounts_refresh_token: s
         print("[OAuth] No Connected Accounts refresh token provided")
         return None
 
-    # Step 1: Exchange refresh token for MyAccount access token
-    token_url = f"https://{AUTH0_DOMAIN}/oauth/token"
-
-    payload = {
-        "grant_type": "refresh_token",
-        "client_id": AUTH0_BFF_CLIENT_ID,
-        "client_secret": AUTH0_BFF_CLIENT_SECRET,
-        "refresh_token": connected_accounts_refresh_token,
-        "audience": AUTH0_MYACCOUNT_AUDIENCE,
-        "scope": CONNECTED_ACCOUNTS_SCOPES,
-    }
-
-    try:
-        response = requests.post(
-            token_url,
-            data=payload,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            timeout=10,
-        )
-
-        if response.status_code != 200:
-            error_data = response.json()
-            print(f"[OAuth] Connected Accounts token refresh failed: {response.status_code} - {error_data}")
-            return None
-
-        token_data = response.json()
-        myaccount_token = token_data.get("access_token")
-
-        if not myaccount_token:
-            print("[OAuth] No access token in refresh response")
-            return None
-
-        print("[OAuth] Got MyAccount token from Connected Accounts refresh")
-
-        # Step 2: Use the token to get Google access token via Connected Accounts API
-        from google_calendar import get_google_token_via_connected_accounts
-        return get_google_token_via_connected_accounts(myaccount_token)
-
-    except requests.RequestException as e:
-        print(f"[OAuth] Connected Accounts token refresh request failed: {e}")
-        return None
+    # Use Federated Token Exchange with the Connected Accounts refresh token
+    # This exchanges the Auth0 refresh token for a Google access token
+    print("[OAuth] Attempting Federated Token Exchange with Connected Accounts refresh token")
+    return get_google_token_via_token_exchange(connected_accounts_refresh_token, connection="google-oauth2")

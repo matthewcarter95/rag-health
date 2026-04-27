@@ -129,9 +129,110 @@ function App() {
     return 'gut health';
   };
 
+  const getNextBusinessDaySlot = (): { start: Date; end: Date } => {
+    const now = new Date();
+
+    // Start with tomorrow
+    const nextDay = new Date(now);
+    nextDay.setDate(nextDay.getDate() + 1);
+
+    // Skip weekends
+    while (nextDay.getDay() === 0 || nextDay.getDay() === 6) {
+      nextDay.setDate(nextDay.getDate() + 1);
+    }
+
+    // Set to 10:00 AM EST (15:00 UTC during EST, 14:00 UTC during EDT)
+    const start = new Date(nextDay);
+    start.setUTCHours(15, 0, 0, 0); // 10am EST = 15:00 UTC
+
+    // 30-minute consultation
+    const end = new Date(start);
+    end.setMinutes(end.getMinutes() + 30);
+
+    return { start, end };
+  };
+
+  const [pendingConsultation, setPendingConsultation] = useState<{
+    topic: string;
+    start: Date;
+    end: Date;
+  } | null>(null);
+
   const handleBookConsultation = (topic: string) => {
-    const message = `Schedule a 30-minute consultation with a ${topic} specialist for next week`;
-    sendMessage(message);
+    const { start, end } = getNextBusinessDaySlot();
+    setPendingConsultation({ topic, start, end });
+
+    const dateStr = start.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      timeZone: 'America/New_York'
+    });
+    const timeStr = start.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: 'America/New_York'
+    });
+
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: `I can schedule a 30-minute consultation with a ${topic} specialist for **${dateStr} at ${timeStr} EST**. Would you like me to add this to your calendar?`,
+      intent: 'calendar_proposal'
+    }]);
+  };
+
+  const confirmConsultation = async () => {
+    if (!pendingConsultation) return;
+
+    const { topic, start, end } = pendingConsultation;
+    setLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/calendar/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          summary: `${topic.charAt(0).toUpperCase() + topic.slice(1)} Specialist Consultation`,
+          start_time: start.toISOString(),
+          end_time: end.toISOString(),
+          description: `30-minute consultation with a ${topic} specialist.\n\nBooked via RAG Health Assistant.`
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.error) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Failed to create event: ${data.error}`,
+          intent: 'calendar_error'
+        }]);
+      } else {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Your consultation has been scheduled! ${data.event_link ? `[View in Google Calendar](${data.event_link})` : ''}`,
+          intent: 'calendar_created'
+        }]);
+      }
+    } catch (err) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: 'Failed to create calendar event. Please try again.',
+        intent: 'calendar_error'
+      }]);
+    } finally {
+      setLoading(false);
+      setPendingConsultation(null);
+    }
+  };
+
+  const cancelConsultation = () => {
+    setPendingConsultation(null);
+    setMessages(prev => [...prev, {
+      role: 'assistant',
+      content: 'No problem! Let me know if you\'d like to schedule a consultation at a different time.',
+    }]);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -233,7 +334,7 @@ function App() {
                   <span className="intent-badge calendar">{msg.intent.replace('_', ' ')}</span>
                 )}
               </div>
-              {msg.role === 'assistant' && msg.topic && !loading && (
+              {msg.role === 'assistant' && msg.topic && !loading && !pendingConsultation && (
                 <button
                   className="book-consultation-btn"
                   onClick={() => handleBookConsultation(msg.topic!)}
@@ -242,6 +343,22 @@ function App() {
                   <span className="calendar-icon">+</span>
                   Book Specialist Consultation
                 </button>
+              )}
+              {msg.intent === 'calendar_proposal' && pendingConsultation && !loading && (
+                <div className="consultation-confirm-btns">
+                  <button
+                    className="confirm-btn"
+                    onClick={confirmConsultation}
+                  >
+                    Yes, schedule it
+                  </button>
+                  <button
+                    className="cancel-btn"
+                    onClick={cancelConsultation}
+                  >
+                    No thanks
+                  </button>
+                </div>
               )}
             </div>
           ))}
