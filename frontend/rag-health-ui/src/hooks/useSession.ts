@@ -131,8 +131,9 @@ export function useSession(): UseSessionReturn {
     });
 
     // Redirect to Auth0 logout to clear Auth0 session
-    const auth0Domain = process.env.REACT_APP_AUTH0_DOMAIN || 'dev-connect-demo-us.auth0-connections.com';
-    const logoutUrl = `https://${auth0Domain}/oidc/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+    const auth0Domain = process.env.REACT_APP_AUTH0_DOMAIN || 'violet-hookworm-18506.cic-demo-platform.auth0app.com';
+    const clientId = process.env.REACT_APP_AUTH0_CLIENT_ID || 'gYVmHq3MbrI73Uf1Qikb1ze5KfBdDLxe';
+    const logoutUrl = `https://${auth0Domain}/v2/logout?client_id=${clientId}&returnTo=${encodeURIComponent(window.location.origin)}`;
     window.location.href = logoutUrl;
   }, []);
 
