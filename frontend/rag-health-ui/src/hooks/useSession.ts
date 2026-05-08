@@ -122,13 +122,18 @@ export function useSession(): UseSessionReturn {
       console.error('Logout request failed:', error);
     }
 
-    // Clear local state regardless of server response
+    // Clear local state
     setState({
       user: null,
       isLoading: false,
       isAuthenticated: false,
       googleConnected: false,
     });
+
+    // Redirect to Auth0 logout to clear Auth0 session
+    const auth0Domain = process.env.REACT_APP_AUTH0_DOMAIN || 'dev-connect-demo-us.auth0-connections.com';
+    const logoutUrl = `https://${auth0Domain}/oidc/logout?post_logout_redirect_uri=${encodeURIComponent(window.location.origin)}`;
+    window.location.href = logoutUrl;
   }, []);
 
   /**
