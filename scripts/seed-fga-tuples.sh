@@ -59,6 +59,18 @@ echo ""
 echo "Tag tuples loaded successfully!"
 echo ""
 
+# Write content-to-tag tuples (stored in FGA, not contextual)
+echo "Loading stored content-to-tag tuples..."
+echo "These define: content_tag:X tagged content:Y (stored, not contextual)"
+echo ""
+fga tuple write \
+    --store-id "${FGA_STORE_ID}" \
+    --file "${TUPLES_DIR}/content-tuples.json"
+
+echo ""
+echo "Content tuples loaded successfully!"
+echo ""
+
 # Verify tag tuples
 echo "=== Verifying Tag Tuples ==="
 echo ""

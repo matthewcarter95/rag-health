@@ -404,6 +404,109 @@ body {
   color: #FF9800;
 }
 
+/* Entitlement badges in header */
+.entitlements {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.entitlement-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+}
+
+.entitlement-badge.tier-premium {
+  background: rgba(33, 150, 243, 0.2);
+  color: #90caf9;
+  border: 1px solid rgba(33, 150, 243, 0.4);
+}
+
+.entitlement-badge.tier-basic {
+  background: rgba(74, 222, 128, 0.15);
+  color: #86efac;
+  border: 1px solid rgba(74, 222, 128, 0.3);
+}
+
+.entitlement-badge[class*="role-researcher"] {
+  background: rgba(156, 39, 176, 0.2);
+  color: #ce93d8;
+  border: 1px solid rgba(156, 39, 176, 0.4);
+}
+
+.entitlement-badge[class*="role-healthcare"] {
+  background: rgba(255, 152, 0, 0.2);
+  color: #ffcc80;
+  border: 1px solid rgba(255, 152, 0, 0.4);
+}
+
+/* Content labels section under assistant messages */
+.content-labels {
+  margin-top: 0.75rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.content-labels-header {
+  display: block;
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #555;
+  margin-bottom: 0.4rem;
+}
+
+.content-label-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.25rem;
+}
+
+.content-title {
+  font-size: 0.75rem;
+  color: #888;
+}
+
+.content-tag {
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+}
+
+.tag-basic, .tag-patient-education {
+  background: rgba(74, 222, 128, 0.15);
+  color: #86efac;
+}
+
+.tag-premium {
+  background: rgba(33, 150, 243, 0.15);
+  color: #90caf9;
+}
+
+.tag-advanced {
+  background: rgba(156, 39, 176, 0.18);
+  color: #ce93d8;
+}
+
+.tag-clinical {
+  background: rgba(255, 193, 7, 0.15);
+  color: #ffe082;
+}
+
+.tag-research {
+  background: rgba(244, 67, 54, 0.15);
+  color: #ef9a9a;
+}
+
 /* Book Consultation Button */
 .book-consultation-btn {
   display: flex;

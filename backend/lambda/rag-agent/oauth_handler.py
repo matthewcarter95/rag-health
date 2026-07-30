@@ -214,9 +214,13 @@ def handle_callback(event: Dict[str, Any]) -> Dict[str, Any]:
     except OAuthError as e:
         return _redirect_with_error(e.message)
 
-    # Extract subscription tier and roles from token claims
-    subscription_tier = user_info.get("https://rag-health.example.com/subscription_tier", "basic")
+    # Roles come from the ID token claim (set by Auth0 Action)
     roles = user_info.get("https://rag-health.example.com/roles", [])
+
+    # Subscription tier is managed in FGA — look it up using the user's Auth0 ID
+    from fga_retriever import get_user_subscription_from_fga
+    fga_user_id = user_info.get("sub", "")
+    subscription_tier = get_user_subscription_from_fga(fga_user_id)
 
     # Get MyAccount token for Connected Accounts API (calendar access)
     myaccount_token = None

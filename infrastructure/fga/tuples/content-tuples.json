@@ -1,0 +1,87 @@
+[
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:microbiome-basics-001"
+  },
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:microbiome-basics-002"
+  },
+  {
+    "user": "content_tag:premium",
+    "relation": "tagged",
+    "object": "content:microbiome-advanced-001"
+  },
+  {
+    "user": "content_tag:advanced",
+    "relation": "tagged",
+    "object": "content:microbiome-advanced-002"
+  },
+  {
+    "user": "content_tag:clinical",
+    "relation": "tagged",
+    "object": "content:clinical-microbiome-001"
+  },
+  {
+    "user": "content_tag:research",
+    "relation": "tagged",
+    "object": "content:research-microbiome-001"
+  },
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:probiotics-intro-001"
+  },
+  {
+    "user": "content_tag:premium",
+    "relation": "tagged",
+    "object": "content:probiotics-advanced-001"
+  },
+  {
+    "user": "content_tag:advanced",
+    "relation": "tagged",
+    "object": "content:probiotics-advanced-002"
+  },
+  {
+    "user": "content_tag:clinical",
+    "relation": "tagged",
+    "object": "content:clinical-probiotics-001"
+  },
+  {
+    "user": "content_tag:research",
+    "relation": "tagged",
+    "object": "content:research-probiotics-001"
+  },
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:nutrition-basics-001"
+  },
+  {
+    "user": "content_tag:premium",
+    "relation": "tagged",
+    "object": "content:nutrition-advanced-001"
+  },
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:gut-brain-basics-001"
+  },
+  {
+    "user": "content_tag:premium",
+    "relation": "tagged",
+    "object": "content:gut-brain-advanced-001"
+  },
+  {
+    "user": "content_tag:basic",
+    "relation": "tagged",
+    "object": "content:digestive-basics-001"
+  },
+  {
+    "user": "content_tag:clinical",
+    "relation": "tagged",
+    "object": "content:digestive-clinical-001"
+  }
+]

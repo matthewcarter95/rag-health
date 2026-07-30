@@ -157,19 +157,18 @@ def handle_query(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str
         return create_response(400, {"error": "Query is required"})
 
     try:
-        # Create RAG chain for this user (with FGA ABAC filtering)
         chain = create_rag_chain(
             user_id=user_context["user_id"],
             subscription_tier=user_context["subscription_tier"],
             roles=user_context.get("roles", []),
         )
 
-        # Run the chain
-        response = chain.invoke(query)
+        result = chain.invoke_with_labels(query)
 
         return create_response(200, {
-            "answer": response,
+            "answer": result["answer"],
             "user_tier": user_context["subscription_tier"],
+            "content_labels": result["content_labels"],
         })
 
     except Exception as e:
@@ -410,12 +409,13 @@ def handle_chat(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str,
             subscription_tier=user_context["subscription_tier"],
             roles=user_context.get("roles", []),
         )
-        response = chain.invoke(message)
+        result = chain.invoke_with_labels(message)
 
         return create_response(200, {
-            "answer": response,
+            "answer": result["answer"],
             "intent": "rag_query",
             "user_tier": user_context["subscription_tier"],
+            "content_labels": result["content_labels"],
         })
 
     except Exception as e:

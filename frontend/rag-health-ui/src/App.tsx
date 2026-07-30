@@ -4,12 +4,19 @@ import './App.css';
 
 const API_URL = process.env.REACT_APP_API_URL || 'https://api.rag-health.demo-connect.us';
 
+interface ContentLabel {
+  content_id: string;
+  title: string;
+  tags: string[];
+}
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
   tier?: string;
   intent?: string;
   topic?: string;
+  content_labels?: ContentLabel[];
 }
 
 // Sample prompts organized by content tier to demonstrate FGA access control
@@ -100,7 +107,8 @@ function App() {
           content: data.answer,
           tier: data.user_tier,
           intent: data.intent,
-          topic: data.intent?.startsWith('calendar') ? undefined : topic
+          topic: data.intent?.startsWith('calendar') ? undefined : topic,
+          content_labels: data.content_labels || [],
         }]);
       }
     } catch (error) {
@@ -281,6 +289,22 @@ function App() {
             {user?.picture && <img src={user.picture} alt="avatar" className="avatar" />}
             {user?.name || user?.email}
           </span>
+          {/* Entitlement badges */}
+          <div className="entitlements">
+            {user?.subscription_tier && (
+              <span className={`entitlement-badge tier-${user.subscription_tier}`}>
+                {user.subscription_tier}
+              </span>
+            )}
+            {user?.roles?.map(role => (
+              <span
+                key={role}
+                className={`entitlement-badge role-${role.toLowerCase().replace(/\s+/g, '_')}`}
+              >
+                {role}
+              </span>
+            ))}
+          </div>
           {googleConnected ? (
             <span className="calendar-status connected" title="Google Calendar connected">
               Calendar Connected
@@ -332,6 +356,21 @@ function App() {
                 {msg.tier && <span className="tier-badge">{msg.tier}</span>}
                 {msg.intent && msg.intent.startsWith('calendar') && (
                   <span className="intent-badge calendar">{msg.intent.replace('_', ' ')}</span>
+                )}
+                {msg.role === 'assistant' && msg.content_labels && msg.content_labels.length > 0 && (
+                  <div className="content-labels">
+                    <span className="content-labels-header">Content accessed</span>
+                    {msg.content_labels.map((label, i) => (
+                      <div key={i} className="content-label-item">
+                        <span className="content-title">{label.title}</span>
+                        {label.tags.map(tag => (
+                          <span key={tag} className={`content-tag tag-${tag.replace(/[^a-z0-9]/gi, '-').toLowerCase()}`}>
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               {msg.role === 'assistant' && msg.topic && !loading && !pendingConsultation && (

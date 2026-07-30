@@ -266,16 +266,46 @@ class RagHealthChain:
         return chain
 
     def invoke(self, question: str) -> str:
-        """
-        Run the RAG chain with a question.
+        """Run the RAG chain and return the answer string."""
+        return self.chain.invoke(question)
 
-        Args:
-            question: User's question about gut health
+    def invoke_with_labels(self, question: str) -> Dict[str, Any]:
+        """
+        Run the RAG chain and return both the answer and content labels.
+
+        Retrieves docs once, extracts their labels, then generates the answer
+        using those same docs to avoid double retrieval.
 
         Returns:
-            Generated response based on authorized content
+            dict with keys: answer (str), content_labels (list of dicts)
         """
-        return self.chain.invoke(question)
+        if self.retriever is None:
+            answer = self.chain.invoke(question)
+            return {"answer": answer, "content_labels": []}
+
+        # Retrieve authorized docs
+        docs = self.get_relevant_docs(question)
+
+        # Build content label list from doc metadata
+        content_labels = [
+            {
+                "content_id": doc.metadata.get("content_id", ""),
+                "title": doc.metadata.get("title", ""),
+                "tags": doc.metadata.get("tags", []),
+            }
+            for doc in docs
+        ]
+
+        # Generate answer using the pre-fetched docs
+        context = self._format_docs(docs)
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", SYSTEM_PROMPT),
+            ("human", RAG_PROMPT_TEMPLATE),
+        ])
+        llm_chain = prompt | self.llm | StrOutputParser()
+        answer = llm_chain.invoke({"context": context, "question": question})
+
+        return {"answer": answer, "content_labels": content_labels}
 
     async def ainvoke(self, question: str) -> str:
         """Async version of invoke."""
