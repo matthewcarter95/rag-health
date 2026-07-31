@@ -39,7 +39,6 @@ from oauth_handler import (
     handle_connect_google,
     handle_connect_callback,
     get_google_token_from_connected_accounts,
-    get_google_token_via_token_exchange,
 )
 
 # Legacy auth imports (kept for backward compatibility during migration)
@@ -192,21 +191,15 @@ def handle_calendar_list_bff(user_context: Dict[str, Any]) -> Dict[str, Any]:
     """
     session = user_context.get("_session", {})
     refresh_token = session.get("refresh_token")
-    connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
     user_id = user_context.get("user_id", "")
 
     try:
         google_token = None
 
-        # Method 1: Try Connected Accounts refresh token (works for any login method)
-        if connected_accounts_refresh_token:
-            print("[Calendar] Trying Connected Accounts refresh token")
-            google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
-
-        # Method 2: Fall back to Federated Token Exchange (Google login users only)
-        if not google_token and refresh_token and user_id.startswith("google-oauth2|"):
-            print("[Calendar] Trying Federated Token Exchange for Google login user")
-            google_token = get_google_token_via_token_exchange(refresh_token)
+        # Token Vault: exchange main refresh token for Google access token
+        if refresh_token:
+            print("[Calendar] Getting Google token from Token Vault")
+            google_token = get_google_token_from_connected_accounts(refresh_token)
 
         if not google_token:
             return create_response(200, {
@@ -250,7 +243,6 @@ def handle_calendar_create_bff(
     """
     session = user_context.get("_session", {})
     refresh_token = session.get("refresh_token")
-    connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
     user_id = user_context.get("user_id", "")
 
     summary = body.get("summary", "").strip()
@@ -266,19 +258,14 @@ def handle_calendar_create_bff(
     try:
         google_token = None
 
-        # Method 1: Try Connected Accounts refresh token (works for any login method)
-        if connected_accounts_refresh_token:
-            print("[Calendar] Trying Connected Accounts refresh token")
-            google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
-
-        # Method 2: Fall back to Federated Token Exchange (Google login users only)
-        if not google_token and refresh_token and user_id.startswith("google-oauth2|"):
-            print("[Calendar] Trying Federated Token Exchange for Google login user")
-            google_token = get_google_token_via_token_exchange(refresh_token)
+        # Token Vault: exchange main refresh token for Google access token
+        if refresh_token:
+            print("[Calendar] Getting Google token from Token Vault")
+            google_token = get_google_token_from_connected_accounts(refresh_token)
 
         if not google_token:
             return create_response(400, {
-                "error": "Unable to access Google Calendar. Please reconnect your Google account.",
+                "error": "Unable to access Google Calendar. Please connect your Google account first.",
             })
 
         # Parse datetime strings
@@ -344,26 +331,17 @@ def handle_chat(user_context: Dict[str, Any], body: Dict[str, Any]) -> Dict[str,
             # Get tokens from session
             session = user_context.get("_session", {})
             refresh_token = session.get("refresh_token")
-            connected_accounts_refresh_token = session.get("connected_accounts_refresh_token")
             user_id = user_context.get("user_id", "")
 
             google_token = None
 
-            # Method 1: Try Connected Accounts refresh token (works for any login method)
-            if connected_accounts_refresh_token:
-                print("[Chat] Trying Connected Accounts refresh token")
+            # Token Vault: exchange main refresh token for Google access token
+            if refresh_token:
+                print("[Chat] Getting Google token from Token Vault")
                 try:
-                    google_token = get_google_token_from_connected_accounts(connected_accounts_refresh_token)
+                    google_token = get_google_token_from_connected_accounts(refresh_token)
                 except Exception as e:
-                    print(f"[Chat] Error getting Google token via Connected Accounts: {e}")
-
-            # Method 2: Fall back to Federated Token Exchange (Google login users only)
-            if not google_token and refresh_token and user_id.startswith("google-oauth2|"):
-                print("[Chat] Trying Federated Token Exchange for Google login user")
-                try:
-                    google_token = get_google_token_via_token_exchange(refresh_token)
-                except Exception as e:
-                    print(f"[Chat] Error getting Google token via Token Exchange: {e}")
+                    print(f"[Chat] Error getting Google token from Token Vault: {e}")
 
             if not google_token:
                 return create_response(200, {
